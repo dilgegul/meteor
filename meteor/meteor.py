@@ -7,7 +7,7 @@ from torch import nn
 
 class METEOR(nn.Module):
     def __init__(self, model, gradient_steps=60, inner_step_size=0.4, first_order=True, verbose=True, device="cpu",
-                 batch_size=8, activation="softmax", seed=0, mode="one_vs_all"):
+                 batch_size=8, activation="sigmoid", seed=0, mode="one_vs_all"):
         super(METEOR, self).__init__()
 
         assert mode in ["one_vs_all", "one_vs_one"]
@@ -43,7 +43,7 @@ class METEOR(nn.Module):
         elif self.mode == "one_vs_one":
             return self.predict_one_vs_one(x, batch_size)
 
-    def fit_one_vs_all(self, X, Y):
+    def fit_one_vs_all_old(self, X, Y):
         self.labels = np.unique(Y)
         self.model.train()
 
@@ -71,10 +71,36 @@ class METEOR(nn.Module):
                     train_logit = self.model(X[idxs].float().to(self.device), params=param)
                     loss_after_adaptation = F.binary_cross_entropy_with_logits(train_logit.squeeze(1),
                                                                                y[idxs].to(self.device))
-                    print(f"adapting to class {target_class} with {X.shape[0]} samples: step {t}/{self.gradient_steps}: support loss {inner_loss:.2f} -> {loss_after_adaptation:.2f}")
+                    #print(
+                     #   f"adapting to class {target_class} with {X.shape[0]} samples: step {t}/{self.gradient_steps}: support loss {inner_loss:.2f} -> {loss_after_adaptation:.2f}")
 
             self.params.append(param)
 
+    def fit_one_vs_all(self, X, Y):
+        self.labels = np.unique(Y)
+        self.model.train()
+
+        # to be filled by self.fit()
+        self.params = []
+
+        target_class = 1
+        self.model.zero_grad()
+
+        y = (Y == target_class).to(float)
+
+        param = OrderedDict(self.model.meta_named_parameters())
+        for t in range(self.gradient_steps):
+            train_logit = self.model(X.float().to(self.device), params=param)
+
+            inner_loss = self.criterion(train_logit.squeeze(1), y.to(self.device))
+            param = update_parameters(self.model, inner_loss, params=param,
+                                      inner_step_size=self.inner_step_size, first_order=self.first_order)
+
+            if self.verbose:
+                train_logit = self.model(X.float().to(self.device), params=param)
+                loss_after_adaptation = F.binary_cross_entropy_with_logits(train_logit.squeeze(1),
+                                                                           y.to(self.device))
+        self.params.append(param)
     def fit_one_vs_one(self, X_all, Y_all):
         self.labels = np.unique(Y_all)
         self.model.train()
@@ -102,7 +128,7 @@ class METEOR(nn.Module):
                         Y = torch.hstack([torch.zeros(X_source.shape[0], device=X_source.device, dtype=torch.float),
                                           torch.ones(X_target.shape[0], device=X_target.device, dtype=torch.float)])
 
-                        print("source")
+                        # print("source")
                         param = OrderedDict(self.model.meta_named_parameters())
                         for t in range(self.gradient_steps):
                             idxs = np.random.randint(X.shape[0], size=self.batch_size)
@@ -115,20 +141,20 @@ class METEOR(nn.Module):
                                 train_logit = self.model(X[idxs].float().to(self.device), params=param)
                                 loss_after_adaptation = F.binary_cross_entropy_with_logits(train_logit.squeeze(1),
                                                                                            Y[idxs].to(self.device))
-                                print(
-                                    f"adapting to class {source_class}-{target_class} with {X.shape[0]} samples: step {t}/{self.gradient_steps}: support loss {inner_loss:.2f} -> {loss_after_adaptation:.2f}")
+                                # print(
+                                #    f"adapting to class {source_class}-{target_class} with {X.shape[0]} samples: step {t}/{self.gradient_steps}: support loss {inner_loss:.2f} -> {loss_after_adaptation:.2f}")
 
                         # move to cpu to save memory
                         param = OrderedDict({k: v.cpu() for k, v in param.items()})
                         self.params[f"{source_class}-{target_class}"] = param
 
     @torch.no_grad()
-    def predict_one_vs_all(self, x, batch_size=16):
+    def predict_one_vs_all_old(self, x, batch_size=16):
         self.model.eval()
         logits = []
         for class_id, param in zip(self.labels, self.params):
-            if self.verbose:
-                print(f"predicting class {class_id}")
+            #if self.verbose:
+                #print(f"predicting class {class_id}")
 
             logit = torch.vstack(
                 [self.model(inp.float().to(self.device), params=param) for inp in torch.split(x, batch_size)])
@@ -147,14 +173,44 @@ class METEOR(nn.Module):
         return self.labels[predictions], probas
 
     @torch.no_grad()
+    def predict_one_vs_all(self, x, batch_size=16):
+        self.model.eval()
+        logits = []
+        for class_id, param in zip(self.labels, self.params):
+            # if self.verbose:
+                # print(f"predicting class {class_id}")
+
+            logit = torch.vstack(
+                [self.model(inp.float().to(self.device), params=param) for inp in torch.split(x, batch_size)])
+            logits.append(logit.squeeze(1).cpu())
+
+        #print(logits)
+        # N x C
+        if self.activation == "softmax":
+            probas = torch.softmax(torch.stack(logits), dim=0)
+        elif self.activation == "sigmoid":
+            probas = torch.sigmoid(torch.stack(logits))
+        else:
+            raise NotImplementedError()
+
+        #print(probas)
+        probas_fixed = probas >= 0.5
+        probas_fixed = probas_fixed.bool().int()
+        #predictions = probas.argmax(0)
+        predictions = probas_fixed
+        #print(self.labels[predictions][0])
+
+        return self.labels[predictions][0], probas
+
+    @torch.no_grad()
     def predict_one_vs_one(self, x, batch_size=16):
         self.model.eval()
         scores = {str(k): [] for k in self.labels}
         votes = {str(k): [] for k in self.labels}
         with torch.no_grad():
             for combination, param in self.params.items():
-                if self.verbose:
-                    print(f"predicting class combination {combination}")
+                # if self.verbose:
+                    # print(f"predicting class combination {combination}")
                 source, target = combination.split("-")
                 param = OrderedDict({k: v.to(self.device) for k, v in param.items()})
                 logit = torch.vstack(
