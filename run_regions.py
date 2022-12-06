@@ -1,6 +1,8 @@
+#%%
 from meteor import METEOR
 from meteor import models
 import torch
+torch.use_deterministic_algorithms(True)
 from timeit import default_timer as timer
 from tqdm import tqdm
 from sklearn.metrics import accuracy_score, cohen_kappa_score, confusion_matrix, ConfusionMatrixDisplay
@@ -8,6 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pickle
 import time
+from appearance import *
 
 # load data
 regions = ["lagos_dataset",         # 0
@@ -47,7 +50,7 @@ def calculate_accuracy(dataset, shot, taskmodel):
     taskmodel.fit(X_support, y_support)
     y_pred, y_score = taskmodel.predict(x)
     end_time = timer()
-    #print("Time elapsed while fitting and predicting:", (end_time - start_time), "seconds")
+    print("Time elapsed while fitting and predicting:", (end_time - start_time), "seconds")
 
     y_pred = [int(a) for a in y_pred]
     acc = accuracy_score(y_pred,y)
@@ -75,11 +78,12 @@ def calculate_average_accuracy(dataset, shots, taskmodel, length):
     x = torch.stack(x)
 
     accuracies = []
+    np.random.seed(42)
 
-    for i in range(length):
-        # np.random.seed(i)
-        t = 1000 * time.time()  # current time in milliseconds
-        np.random.seed(int(t) % 2 ** 32)
+    start_time = timer()
+    for i in tqdm(range(length)):
+        #t = 1000 * time.time()  # current time in milliseconds
+        #np.random.seed(int(t) % 2 ** 32)
         debris_shots = np.random.choice(debris_idx, size=shots, replace=False)
         non_debris_shots = np.random.choice(non_debris_idx, size=shots, replace=False)
         combined_shots = np.concatenate((debris_shots, non_debris_shots), axis=None)
@@ -99,8 +103,10 @@ def calculate_average_accuracy(dataset, shots, taskmodel, length):
     avg_acc = np.mean(acc)
 
     #print("Region: ", ID[0].split('_')[0])
-    print("Avearage accuracy of the model over ", length, " random support sets : ", round(avg_acc*100,2), "%", sep="")
 
+    end_time = timer()
+    print("Time elapsed:", (end_time - start_time), "seconds")
+    print("Average accuracy of the model over ", length, " random support sets : ", round(avg_acc*100,2), "%", sep="")
 
 def calculate_accuracy_specified(dataset, shot, taskmodel):
     # select support images from time series (first and last <shot> images)
@@ -160,7 +166,7 @@ def evaluate_shots_number(dataset, taskmodel, length):
     plt.grid()
     plt.show()
 
-def evaluate_shots_quality(dataset, taskmodel, shots,  length):
+def evaluate_shots_quality(dataset, taskmodel, shots,  length, *, verbose: bool = False):
     # select support images from time series (first and last <shot> images)
     x, y, ID = dataset[0], dataset[1], dataset[2]
 
@@ -192,21 +198,63 @@ def evaluate_shots_quality(dataset, taskmodel, shots,  length):
         y_pred = [int(a) for a in y_pred]
 
         acc = accuracy_score(y_pred,y)
-        #print("Region: ", ID[0].split('_')[0])
-        #print("Number of shots: ", shot)
-        print("Accuracy of the model #", i, ": ", round(acc*100,2), "%", sep="")
+        if verbose == True:
+            print("Region: ", ID[0].split('_')[0])
+            print("Number of shots: ", shots)
+            print("Accuracy of the model #", i, ": ", round(acc*100,2), "%", sep="")
         accuracies.append(acc)
 
     best_id = np.argmax(accuracies)
     best_accuracy = accuracies[best_id]
     best_combination = idx_archive[best_id]
-    print("Best performing support set:", best_combination, " with accuracy ", round(best_accuracy*100,2), "%", sep="")
 
-    plt.boxplot(accuracies)
-    plt.title(("Accuracies for different randomly chosen support sets (Region: " +  (ID[0].split('_')[0]).capitalize() + ")"))
-    plt.ylim(0, 1)
+    if verbose == True:
+        print("Best performing support set:", best_combination, " with accuracy ", round(best_accuracy*100,2), "%", sep="")
+        plt.boxplot(accuracies)
+        plt.title(("Accuracies for different randomly chosen support sets (Region: " +  (ID[0].split('_')[0]).capitalize() + ")"))
+        plt.ylim(0, 1)
+        plt.show()
+    return accuracies
+
+def evaluate_variability(taskmodel, region, shots):
+    start = timer()
+    variances = []
+    medians = []
+    x_axis = []
+    accuracies_plot =[]
+
+    for i in tqdm(range(5)):
+        x = (i+1)
+        accuracies = evaluate_shots_quality(datasets[region], taskmodel, shots, x, verbose = False)
+        x_axis.append(x)
+        variances.append(np.var(accuracies))
+        medians.append(np.median(accuracies))
+        accuracies_plot.append(accuracies)
+
+    plt.plot(x_axis, variances)
+    plt.title(("Region: " + (datasets[region][2][0].split('_')[0]).capitalize()))
+    plt.xlabel("Number of runs")
+    plt.ylabel("Variance")
+    plt.tight_layout()
     plt.show()
-    return best_combination
+
+    plt.plot(x_axis, medians)
+    plt.title(("Region: " + (datasets[region][2][0].split('_')[0]).capitalize()))
+    plt.xlabel("Number of runs")
+    plt.ylabel("Median")
+    plt.tight_layout()
+    plt.show()
+
+    plt.boxplot(accuracies_plot, positions=x_axis, showmeans=True)
+    plt.title(("Region: " + (datasets[region][2][0].split('_')[0]).capitalize()))
+    plt.ylabel("Accuracy")
+    plt.xlabel("Number of runs")
+    plt.ylim(0, 1)
+    plt.tight_layout()
+    plt.show()
+
+    end = timer()
+    print("Time elapsed:", (end - start)/60, "minutes")
 
 def evaluate_chosen_set(dataset, taskmodel, shots, best_idx, length):
     # select support images from time series (first and last <shot> images)
@@ -238,7 +286,6 @@ def evaluate_chosen_set(dataset, taskmodel, shots, best_idx, length):
     plt.title(("Accuracies for different runs with the same support set (Region: " + (ID[0].split('_')[0]).capitalize() + ")"))
     #plt.ylim(0, 1)
     plt.show()
-
 
 def define_best_support_sets():
     best_combinations_for_all_regions = []
@@ -273,13 +320,14 @@ def generalise(dataset_A, support_set_A, dataset_B):
     #print("Number of shots: ", shots)
     print("Accuracy of the model #", i, ": ", round(acc * 100, 2), "%", sep="")
 
-#calculate_accuracy(datasets[0], 5, taskmodel)
-#calculate_average_accuracy(datasets[0], 5, taskmodel, 42)
+#calculate_accuracy(datasets[5], 5, taskmodel)
+#calculate_average_accuracy(datasets[5], 5, taskmodel, 42)
 #calculate_accuracy_specified(datasets[0], 5, taskmodel)
-evaluate_shots_quality(datasets[1], taskmodel, 5, 42)
+#evaluate_shots_quality(datasets[1], taskmodel, 5, 10)
 #evaluate_shots_number(datasets[0], taskmodel, 20)
 #best_combination = evaluate_shots_quality(datasets[4], taskmodel, 5, 22)
 #evaluate_chosen_set(datasets[0], taskmodel, 5, best_combination, 42)
 #generalise(datasets[3], best_support_sets[3], datasets[2])
+evaluate_variability(taskmodel, 0, 5)
 
-
+# %%

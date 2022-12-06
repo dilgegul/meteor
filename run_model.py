@@ -1,3 +1,4 @@
+#%%
 from meteor import METEOR
 from meteor import models
 import torch
@@ -27,16 +28,11 @@ y_pred, y_scores = taskmodel.predict(X_query)
 # download data
 timeseries, dates_dt = get_data()
 
-print(type(timeseries))
-
 # select support images from time series (first and last <shot> images)
 shot = 3
 
 start = timeseries[:shot]
 end = timeseries[-shot:]
-
-print(start)
-
 X_support = torch.vstack([start, end])
 y_support = torch.hstack([torch.zeros(shot), torch.ones(shot)]).long()
 
@@ -55,3 +51,4 @@ print("Time elapsed while fitting and predicting:", (end_time - start_time), "se
 
 # plot score
 plot(y_score, dates_dt)
+# %%
