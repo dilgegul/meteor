@@ -374,11 +374,11 @@ def generalise(dataset_A, support_set_A, dataset_B):
 #calculate_average_accuracy(datasets[5], 5, taskmodel, 42)
 #calculate_accuracy_specified(datasets[0], 5, taskmodel)
 #evaluate_shots_quality(datasets[4], taskmodel, 5, 10, verbose = True)
-#evaluate_shots_number(datasets[0], taskmodel, 20)
+evaluate_shots_number(datasets[0], taskmodel, 5)
 #best_combination = evaluate_shots_quality(datasets[4], taskmodel, 5, 22)
 #evaluate_chosen_set(datasets[0], taskmodel, 5, best_combination, 42)
 #generalise(datasets[3], best_support_sets[3], datasets[2])
-evaluate_variability(taskmodel, 4, 5)
+#evaluate_variability(taskmodel, 4, 5)
 #evaluate_variability_on_same_support_set(datasets[4], taskmodel, 5, 42, verbose = True)
 
 # %%
