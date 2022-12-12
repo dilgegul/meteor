@@ -36,7 +36,7 @@ def read_tif_image(imagefile, window=None):
 class RefinedFlobsRegionDataset(Dataset):
 
     def __init__(self, root, region, imagesize=1280, shuffle=False, transform=None):
-        self.points = gpd.read_file(os.path.join(root, region + ".shp"))
+        self.points = gpd.read_file(os.path.join("/data/dilge/marinedebris/marinedebris_refined", "durban_20190424" + ".shp"))
 
         self.region = region
         if shuffle:
@@ -77,3 +77,57 @@ class RefinedFlobsRegionDataset(Dataset):
 
         return image, point.type, f"{self.region}-{item}"
 
+def read_tif_image_raw(imagefile, window=None):
+    # loading of the image
+    with rio.open(imagefile, "r") as src:
+        image = src.read(window=window)
+
+        if window is not None:
+            win_transform = src.window_transform(window)
+        else:
+            win_transform = src.transform
+    return image, win_transform
+
+class RefinedFlobsRegionDataset_raw(Dataset):
+
+    def __init__(self, root, region, imagesize=1280, shuffle=False, transform=None):
+        self.points = gpd.read_file(os.path.join("/data/dilge/marinedebris/marinedebris_refined", "durban_20190424" + ".shp"))
+
+        self.region = region
+        if shuffle:
+            self.points = self.points.sample(frac=1, random_state=0)
+        self.tifffile = os.path.join(root, region + ".tif")
+        self.imagesize = imagesize
+        self.data_transform = transform
+
+        with rio.open(self.tifffile) as src:
+            self.crs = src.crs
+            self.transform = src.transform
+            self.height, self.width = src.height, src.width
+            profile = src.profile
+            left, bottom, right, top = src.bounds
+
+        self.points = self.points.to_crs(self.crs)
+
+        # remove points that are too close to the image border
+        image_bounds = self.points.buffer(self.imagesize//2).bounds
+        out_of_bounds = pd.concat([image_bounds.minx < left, image_bounds.miny < bottom, image_bounds.maxx > right, image_bounds.maxy > top],axis=1).any(axis=1)
+        self.points = self.points.loc[~out_of_bounds]
+
+    def __len__(self):
+        return len(self.points)
+
+    def __getitem__(self, item):
+        point = self.points.iloc[item]
+
+        left, bottom, right, top = point.geometry.buffer(self.imagesize//2).bounds
+        window = rio.windows.from_bounds(left, bottom, right, top, self.transform)
+
+        image, _ = read_tif_image_raw(self.tifffile, window)
+
+        image = torch.from_numpy((image * 1e-4).astype(rio.float32))
+
+        if self.data_transform is not None:
+            image = self.data_transform(image)
+
+        return image, point.type, f"{self.region}-{item}"

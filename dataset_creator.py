@@ -1,5 +1,5 @@
 import pickle
-from refined_region_dataset import RefinedFlobsRegionDataset
+from refined_region_dataset import RefinedFlobsRegionDataset, RefinedFlobsRegionDataset_raw
 from tqdm import tqdm
 
 regions = ["lagos_20190101",
@@ -9,7 +9,10 @@ regions = ["lagos_20190101",
            "accra_20181031",
            "durban_20190424"]
 
-ds = RefinedFlobsRegionDataset(root="/data/dilge/marinedebris/marinedebris_refined", region="durban_20190424",
+#ds = RefinedFlobsRegionDataset_raw(root="/data/dilge/marinedebris/marinedebris_refined", region="accra_20181031",
+#                               transform=None, imagesize=320)
+
+ds = RefinedFlobsRegionDataset(root="/data/dilge/marinedebris/durban", region="durban_20190424_l1c",
                                transform=None, imagesize=320)
 
 x_s = []
@@ -27,5 +30,7 @@ dataset.append(x_s)
 dataset.append(y_s)
 dataset.append(ID_s)
 
-with open('datasets/durban_dataset.pickle', 'wb') as output:
+print(list(dataset[0][0].size()))
+
+with open('datasets/durban_dataset_l1c.pickle', 'wb') as output:
     pickle.dump(dataset, output)

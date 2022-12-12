@@ -2,7 +2,7 @@
 from meteor import METEOR
 from meteor import models
 import torch
-torch.use_deterministic_algorithms(True)
+#torch.use_deterministic_algorithms(True)
 from timeit import default_timer as timer
 from tqdm import tqdm
 from sklearn.metrics import accuracy_score, cohen_kappa_score, confusion_matrix, ConfusionMatrixDisplay
@@ -26,6 +26,14 @@ for i in range(len(regions)):
         dataset = pickle.load(data)
     datasets.append(dataset)
 
+# loa raw datasets from marmara and accra (13 bands)
+# with open("datasets/raw_marmara_dataset.pickle", 'rb') as data:
+#     raw_marmara_dataset = pickle.load(data)
+# with open("datasets/raw_accra_dataset.pickle", 'rb') as data:
+#     raw_accra_dataset = pickle.load(data)
+with open("datasets/durban_dataset_l1c.pickle", 'rb') as data:
+    durban_dataset_l1c = pickle.load(data)
+
 # load previously save high performing support sets for each region
 with open('datasets/best_support_sets_v1.pickle', 'rb') as data:
     best_support_sets = pickle.load(data)
@@ -43,24 +51,26 @@ def calculate_accuracy(dataset, shot, taskmodel):
     end = x[-shot:]
     X_support = torch.vstack([start, end])
     y_support = torch.hstack([torch.ones(shot), torch.zeros(shot)]).long()
+    X_test = x[shot:-shot]
+    y_test = y[shot:-shot]
 
     # fit and predict
     start_time = timer()
     taskmodel.fit(X_support, y_support)
-    y_pred, y_score = taskmodel.predict(x)
+    y_pred, y_score = taskmodel.predict(X_test)
     end_time = timer()
     print("Time elapsed while fitting and predicting:", (end_time - start_time), "seconds")
 
     y_pred = [int(a) for a in y_pred]
-    acc = accuracy_score(y_pred,y)
+    acc = accuracy_score(y_pred,y_test)
 
     print("Region: ", ID[0].split('_')[0])
     #print("Number of shots: ", shot)
     print("Accuracy of the model: ", round(acc*100,2), "%", sep="")
 
-    print("Cohen Kappa Score: ", cohen_kappa_score(y_pred, y))
+    print("Cohen Kappa Score: ", cohen_kappa_score(y_pred, y_test))
 
-    disp = ConfusionMatrixDisplay(confusion_matrix(y, y_pred))
+    disp = ConfusionMatrixDisplay(confusion_matrix(y_test, y_pred))
     disp.plot()
     plt.title(("Region: " + (ID[0].split('_')[0]).capitalize()))
     plt.show()
@@ -74,6 +84,7 @@ def calculate_average_accuracy(dataset, shots, taskmodel, length):
     y_bool_nondebris = y == 0
     debris_idx = np.where(y_bool_debris)[0]
     non_debris_idx = np.where(y_bool_nondebris)[0]
+    all_index = np.concatenate((debris_idx, non_debris_idx), axis=None)
     x = torch.stack(x)
 
     accuracies = []
@@ -86,17 +97,20 @@ def calculate_average_accuracy(dataset, shots, taskmodel, length):
         debris_shots = np.random.choice(debris_idx, size=shots, replace=False)
         non_debris_shots = np.random.choice(non_debris_idx, size=shots, replace=False)
         combined_shots = np.concatenate((debris_shots, non_debris_shots), axis=None)
+        test_index = list(set(all_index) - set(combined_shots))
 
         X_support = x[combined_shots]
         y_support = torch.hstack([torch.ones(shots), torch.zeros(shots)])
+        X_test = x[test_index]
+        y_test = y[test_index]
 
         # fit and predict
         taskmodel.fit(X_support, y_support)
-        y_pred, y_score = taskmodel.predict(x)
+        y_pred, y_score = taskmodel.predict(X_test)
 
 
         y_pred = [int(a) for a in y_pred]
-        acc = accuracy_score(y_pred,y)
+        acc = accuracy_score(y_pred,y_test)
         accuracies.append(acc)
 
     avg_acc = np.mean(acc)
@@ -142,13 +156,15 @@ def evaluate_shots_number(dataset, taskmodel, length):
         end = x[-shot:]
         X_support = torch.vstack([start, end])
         y_support = torch.hstack([torch.ones(shot), torch.zeros(shot)])
+        X_test = x[shot:-shot]
+        y_test = y[shot:-shot]
 
         # fit and predict
         taskmodel.fit(X_support, y_support)
-        y_pred, y_score = taskmodel.predict(x)
+        y_pred, y_score = taskmodel.predict(X_test)
         y_pred = [int(a) for a in y_pred]
 
-        acc = accuracy_score(y_pred,y)
+        acc = accuracy_score(y_pred,y_test)
 
         shots.append(shot)
         accuracies.append(round(acc*100,2))
@@ -157,7 +173,7 @@ def evaluate_shots_number(dataset, taskmodel, length):
     ax = fig.add_subplot(1, 1, 1)
     ax.plot(shots, accuracies, color='tab:blue')
     ax.set_xlabel('# shots')
-    ax.set_xticks(np.arange(0, 21, step=1))
+    ax.set_xticks(np.arange(0, length+1, step=1))
     ax.set_yticks(np.arange(0, 101, step=10))
     ax.set_ylabel('% accuracy of predictions')
     ax.set_ylim(0, 100)
@@ -174,6 +190,7 @@ def evaluate_shots_quality(dataset, taskmodel, shots,  length, *, verbose: bool 
     y_bool_nondebris = y == 0
     debris_idx = np.where(y_bool_debris)[0]
     non_debris_idx = np.where(y_bool_nondebris)[0]
+    all_index = np.concatenate((debris_idx, non_debris_idx), axis=None)
     x = torch.stack(x)
 
     idx_archive = []
@@ -186,17 +203,21 @@ def evaluate_shots_quality(dataset, taskmodel, shots,  length, *, verbose: bool 
         debris_shots = np.random.choice(debris_idx, size=shots, replace=False)
         non_debris_shots = np.random.choice(non_debris_idx, size=shots, replace=False)
         combined_shots = np.concatenate((debris_shots, non_debris_shots), axis=None)
+        test_index = list(set(all_index) - set(combined_shots))
         idx_archive.append(combined_shots)
 
         X_support = x[combined_shots]
         y_support = torch.hstack([torch.ones(shots), torch.zeros(shots)])
+        X_test = x[test_index]
+        y_test = y[test_index]
+
 
         # fit and predict
         taskmodel.fit(X_support, y_support)
-        y_pred, y_score = taskmodel.predict(x)
+        y_pred, y_score = taskmodel.predict(X_test)
         y_pred = [int(a) for a in y_pred]
 
-        acc = accuracy_score(y_pred,y)
+        acc = accuracy_score(y_pred,y_test)
         if verbose == True:
             print("Region: ", ID[0].split('_')[0])
             print("Number of shots: ", shots)
@@ -219,6 +240,82 @@ def evaluate_shots_quality(dataset, taskmodel, shots,  length, *, verbose: bool 
         plt.show()
     return accuracies
 
+def evaluate_shots_quality_comparison(dataset1, dataset2, taskmodel, shots,  length, *, verbose: bool = False): #THIS ONE IS NOT CORRECTED FOR TEST SETS
+    # select support images from time series (first and last <shot> images)
+    x, y, ID = dataset1[0], dataset1[1], dataset1[2]
+    x2, y2, ID2 = dataset2[0], dataset2[1], dataset2[2]
+
+
+    y = np.array(y)
+    y2 = np.array(y2)
+    y_bool_debris = y == 1
+    y_bool_nondebris = y == 0
+    debris_idx = np.where(y_bool_debris)[0]
+    non_debris_idx = np.where(y_bool_nondebris)[0]
+    x = torch.stack(x)
+    x2 = torch.stack(x2)
+
+    idx_archive = []
+    accuracies = []
+    accuracies2 = []
+
+    for i in range(length):
+        # same for both
+        # np.random.seed(42)
+        t = 1000 * time.time()  # current time in milliseconds
+        np.random.seed(int(t) % 2 ** 32)
+        debris_shots = np.random.choice(debris_idx, size=shots, replace=False)
+        non_debris_shots = np.random.choice(non_debris_idx, size=shots, replace=False)
+        combined_shots = np.concatenate((debris_shots, non_debris_shots), axis=None)
+        idx_archive.append(combined_shots)
+
+        # different/separate for both
+        X_support = x[combined_shots]
+        y_support = torch.hstack([torch.ones(shots), torch.zeros(shots)])
+        # fit and predict
+        taskmodel.fit(X_support, y_support)
+        y_pred, y_score = taskmodel.predict(x)
+        y_pred = [int(a) for a in y_pred]
+        acc = accuracy_score(y_pred,y)
+        accuracies.append(acc)
+
+        X_support2 = x2[combined_shots]
+        y_support2 = torch.hstack([torch.ones(shots), torch.zeros(shots)])
+        # fit and predict
+        taskmodel.fit(X_support2, y_support2)
+        y_pred2, y_score2 = taskmodel.predict(x2)
+        y_pred2 = [int(a) for a in y_pred2]
+        acc2 = accuracy_score(y_pred2, y2)
+        accuracies2.append(acc2)
+
+    best_id = np.argmax(accuracies)
+    best_accuracy = accuracies[best_id]
+    best_combination = idx_archive[best_id]
+
+    best_id2 = np.argmax(accuracies2)
+    best_accuracy2 = accuracies2[best_id2]
+    best_combination2 = idx_archive[best_id2]
+
+    if verbose == True:
+        print("Best performing support set (for corrected data):", best_combination, " with accuracy ", round(best_accuracy*100,2), "%", sep="")
+        plt.boxplot(accuracies)
+        plt.title(("Corrected - Region: " + (ID[0].split('_')[0]).capitalize()))
+        plt.ylabel("Accuracy")
+        plt.ylim(0,1)
+        plt.tick_params(axis='x', bottom=False, labelbottom=False)
+        plt.tight_layout()
+        plt.show()
+
+        print("Best performing support set (for raw data):", best_combination2, " with accuracy ", round(best_accuracy2*100,2), "%", sep="")
+        plt.boxplot(accuracies2)
+        plt.title(("Raw - Region: " + (ID[0].split('_')[0]).capitalize()))
+        plt.ylabel("Accuracy")
+        plt.ylim(0,1)
+        plt.tick_params(axis='x', bottom=False, labelbottom=False)
+        plt.tight_layout()
+        plt.show()
+    return accuracies
+
 def evaluate_variability_on_same_support_set(dataset, taskmodel, shots,  length, *, verbose: bool = False):
     # select support images from time series (first and last <shot> images)
     x, y, ID = dataset[0], dataset[1], dataset[2]
@@ -228,25 +325,29 @@ def evaluate_variability_on_same_support_set(dataset, taskmodel, shots,  length,
     y_bool_nondebris = y == 0
     debris_idx = np.where(y_bool_debris)[0]
     non_debris_idx = np.where(y_bool_nondebris)[0]
+    all_index = np.concatenate((debris_idx, non_debris_idx), axis=None)
     x = torch.stack(x)
 
     np.random.seed(42)
     debris_shots = np.random.choice(debris_idx, size=shots, replace=False)
     non_debris_shots = np.random.choice(non_debris_idx, size=shots, replace=False)
     combined_shots = np.concatenate((debris_shots, non_debris_shots), axis=None)
+    test_index = list(set(all_index) - set(combined_shots))
 
     accuracies = []
 
     for i in range(length):
         X_support = x[combined_shots]
         y_support = torch.hstack([torch.ones(shots), torch.zeros(shots)])
+        X_test = x[test_index]
+        y_test = y[test_index]
 
         # fit and predict
         taskmodel.fit(X_support, y_support)
-        y_pred, y_score = taskmodel.predict(x)
+        y_pred, y_score = taskmodel.predict(X_test)
         y_pred = [int(a) for a in y_pred]
 
-        acc = accuracy_score(y_pred,y)
+        acc = accuracy_score(y_pred,y_test)
         if verbose == True:
             print("Region: ", ID[0].split('_')[0])
             print("Number of shots: ", shots)
@@ -310,11 +411,19 @@ def evaluate_chosen_set(dataset, taskmodel, shots, best_idx, length):
     # select support images from time series (first and last <shot> images)
     x, y, ID = dataset[0], dataset[1], dataset[2]
     y = np.array(y)
+    y_bool_debris = y == 1
+    y_bool_nondebris = y == 0
+    debris_idx = np.where(y_bool_debris)[0]
+    non_debris_idx = np.where(y_bool_nondebris)[0]
+    all_index = np.concatenate((debris_idx, non_debris_idx), axis=None)
     x = torch.stack(x)
 
     combined_shots = np.array(best_idx) # random seed 40
+    test_index = list(set(all_index) - set(combined_shots))
     X_support = x[combined_shots]
     y_support = torch.hstack([torch.ones(shots), torch.zeros(shots)])
+    X_test = x[test_index]
+    y_test = y[test_index]
 
     print("Region: ", (ID[0].split('_')[0]).capitalize())
     print("Number of shots: ", shots)
@@ -323,10 +432,10 @@ def evaluate_chosen_set(dataset, taskmodel, shots, best_idx, length):
     for i in tqdm(range(length)):
         # fit and predict
         taskmodel.fit(X_support, y_support)
-        y_pred, y_score = taskmodel.predict(x)
+        y_pred, y_score = taskmodel.predict(X_test)
         y_pred = [int(a) for a in y_pred]
 
-        acc = accuracy_score(y_pred,y)
+        acc = accuracy_score(y_pred,y_test)
         #print("Region: ", ID[0].split('_')[0])
         #print("Number of shots: ", shot)
         #print("Accuracy of the model: ", round(acc*100,2), "%", sep="")
@@ -337,17 +446,17 @@ def evaluate_chosen_set(dataset, taskmodel, shots, best_idx, length):
     #plt.ylim(0, 1)
     plt.show()
 
-def define_best_support_sets():
+def define_best_support_sets_per_region(shot, runs):
     best_combinations_for_all_regions = []
     for i in range(len(regions)):
-        best_combination = evaluate_shots_quality(datasets[i], taskmodel, 5, 142)
+        best_combination = evaluate_shots_quality(datasets[i], taskmodel, shot, runs)
         best_combinations_for_all_regions.append(best_combination)
 
     print(best_combinations_for_all_regions)
     with open('datasets/best_support_sets_v1.pickle', 'wb') as output:
         pickle.dump(best_combinations_for_all_regions, output)
 
-def generalise(dataset_A, support_set_A, dataset_B):
+def generalise(dataset_A, support_set_A, dataset_B): #THIS ONE IS NOT CORRECTED FOR TEST SETS
     x_A, y_A, ID_A = dataset_A[0], dataset_A[1], dataset_A[2]
     x_B, y_B, ID_B = dataset_B[0], dataset_B[1], dataset_B[2]
     y_A, y_B = np.array(y_A), np.array(y_B)
@@ -370,15 +479,6 @@ def generalise(dataset_A, support_set_A, dataset_B):
     #print("Number of shots: ", shots)
     print("Accuracy of the model #", i, ": ", round(acc * 100, 2), "%", sep="")
 
-#calculate_accuracy(datasets[5], 5, taskmodel)
-#calculate_average_accuracy(datasets[5], 5, taskmodel, 42)
-#calculate_accuracy_specified(datasets[0], 5, taskmodel)
-#evaluate_shots_quality(datasets[4], taskmodel, 5, 10, verbose = True)
-evaluate_shots_number(datasets[0], taskmodel, 5)
-#best_combination = evaluate_shots_quality(datasets[4], taskmodel, 5, 22)
-#evaluate_chosen_set(datasets[0], taskmodel, 5, best_combination, 42)
-#generalise(datasets[3], best_support_sets[3], datasets[2])
-#evaluate_variability(taskmodel, 4, 5)
-#evaluate_variability_on_same_support_set(datasets[4], taskmodel, 5, 42, verbose = True)
+
 
 # %%
