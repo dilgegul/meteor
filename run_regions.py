@@ -1,4 +1,5 @@
 #%%
+import matplotlib.pyplot as plt
 from meteor import METEOR
 from meteor import models
 import torch
@@ -10,6 +11,7 @@ import numpy as np
 import pickle
 import time
 from appearance import *
+from visualization import *
 
 # load data
 regions = ["lagos_dataset",         # 0
@@ -225,12 +227,16 @@ def evaluate_shots_quality(dataset, taskmodel, shots,  length, *, verbose: bool 
         accuracies.append(acc)
 
     best_id = np.argmax(accuracies)
+    worst_id = np.argmin(accuracies)
     best_accuracy = accuracies[best_id]
+    worst_accuracy = accuracies[worst_id]
     best_combination = idx_archive[best_id]
+    worst_combination = idx_archive[worst_id]
 
     if verbose == True:
-        #print("Best performing support set:", best_combination, " with accuracy ", round(best_accuracy*100,2), "%", sep="")
-        print("Best accuracy ", round(best_accuracy * 100, 2), "%", sep="")
+        print("Best performing support set:", best_combination, " with accuracy ", round(best_accuracy*100,2), "%", sep="")
+        print("Worst performing support set:", worst_combination, " with accuracy ", round(worst_accuracy * 100, 2), "%", sep="")
+        #print("Best accuracy ", round(best_accuracy * 100, 2), "%", sep="")
         plt.boxplot(accuracies)
         plt.title(("Region: " + (ID[0].split('_')[0]).capitalize()))
         plt.ylabel("Accuracy")
@@ -238,7 +244,7 @@ def evaluate_shots_quality(dataset, taskmodel, shots,  length, *, verbose: bool 
         plt.tick_params(axis='x', bottom=False, labelbottom=False)
         plt.tight_layout()
         plt.show()
-    return accuracies
+    return best_combination, worst_combination, accuracies
 
 def evaluate_shots_quality_comparison(dataset1, dataset2, taskmodel, shots,  length, *, verbose: bool = False): #THIS ONE IS NOT CORRECTED FOR TEST SETS
     # select support images from time series (first and last <shot> images)
@@ -446,15 +452,80 @@ def evaluate_chosen_set(dataset, taskmodel, shots, best_idx, length):
     #plt.ylim(0, 1)
     plt.show()
 
-def define_best_support_sets_per_region(shot, runs):
+def define_best_support_sets_per_region_1(shot, runs):
     best_combinations_for_all_regions = []
+    worst_combinations_for_all_regions = []
     for i in range(len(regions)):
-        best_combination = evaluate_shots_quality(datasets[i], taskmodel, shot, runs)
+        best_combination, worst_combination, accuracies = evaluate_shots_quality(datasets[i], taskmodel, shot, runs)
         best_combinations_for_all_regions.append(best_combination)
+        worst_combinations_for_all_regions.append(worst_combination)
 
-    print(best_combinations_for_all_regions)
-    with open('datasets/best_support_sets_v1.pickle', 'wb') as output:
+    print("Best (run #1)", best_combinations_for_all_regions)
+    print("Worst (run #1)", worst_combinations_for_all_regions)
+    with open('datasets/best_support_sets_v2.pickle', 'wb') as output:
         pickle.dump(best_combinations_for_all_regions, output)
+    with open('datasets/worst_support_sets_v2.pickle', 'wb') as output:
+        pickle.dump(worst_combinations_for_all_regions, output)
+
+def define_best_support_sets_per_region_2(shot, runs):
+    best_combinations_for_all_regions = []
+    worst_combinations_for_all_regions = []
+    for i in range(len(regions)):
+        best_combination, worst_combination, accuracies = evaluate_shots_quality(datasets[i], taskmodel, shot, runs)
+        best_combinations_for_all_regions.append(best_combination)
+        worst_combinations_for_all_regions.append(worst_combination)
+
+    print("Best (run #2)", best_combinations_for_all_regions)
+    print("Worst (run #2)", worst_combinations_for_all_regions)
+    with open('datasets/best_support_sets_v3.pickle', 'wb') as output:
+        pickle.dump(best_combinations_for_all_regions, output)
+    with open('datasets/worst_support_sets_v3.pickle', 'wb') as output:
+        pickle.dump(worst_combinations_for_all_regions, output)
+
+def define_best_support_sets_per_region_3(shot, runs):
+    best_combinations_for_all_regions = []
+    worst_combinations_for_all_regions = []
+    for i in range(len(regions)):
+        best_combination, worst_combination, accuracies = evaluate_shots_quality(datasets[i], taskmodel, shot, runs)
+        best_combinations_for_all_regions.append(best_combination)
+        worst_combinations_for_all_regions.append(worst_combination)
+
+    print("Best (run #3)", best_combinations_for_all_regions)
+    print("Worst (run #3)", worst_combinations_for_all_regions)
+    with open('datasets/best_support_sets_v4.pickle', 'wb') as output:
+        pickle.dump(best_combinations_for_all_regions, output)
+    with open('datasets/worst_support_sets_v4.pickle', 'wb') as output:
+        pickle.dump(worst_combinations_for_all_regions, output)
+
+def define_best_support_sets_per_region_4(shot, runs):
+    best_combinations_for_all_regions = []
+    worst_combinations_for_all_regions = []
+    for i in range(len(regions)):
+        best_combination, worst_combination, accuracies = evaluate_shots_quality(datasets[i], taskmodel, shot, runs)
+        best_combinations_for_all_regions.append(best_combination)
+        worst_combinations_for_all_regions.append(worst_combination)
+
+    print("Best (run #4)", best_combinations_for_all_regions)
+    print("Worst (run #4)", worst_combinations_for_all_regions)
+    with open('datasets/best_support_sets_v5.pickle', 'wb') as output:
+        pickle.dump(best_combinations_for_all_regions, output)
+    with open('datasets/worst_support_sets_v5.pickle', 'wb') as output:
+        pickle.dump(worst_combinations_for_all_regions, output)
+
+def define_best_support_sets_per_region_5(shot, runs):
+    best_combinations_for_all_regions = []
+    worst_combinations_for_all_regions = []
+    for i in range(len(regions)):
+        best_combination, worst_combination, accuracies = evaluate_shots_quality(datasets[i], taskmodel, shot, runs)
+        best_combinations_for_all_regions.append(best_combination)
+        worst_combinations_for_all_regions.append(worst_combination)
+
+    print("Best (run #5)", best_combinations_for_all_regions)
+    print("Worst (run #5)", worst_combinations_for_all_regions)
+    with open('datasets/best_support_sets_v6.pickle', 'wb') as output:
+        pickle.dump(best_combinations_for_all_regions, output)
+    with open('datasets/worst_support_sets_v6.pickle', 'wb') as output:
+        pickle.dump(worst_combinations_for_all_regions, output)
 
 def generalise(dataset_A, support_set_A, dataset_B): #THIS ONE IS NOT CORRECTED FOR TEST SETS
     x_A, y_A, ID_A = dataset_A[0], dataset_A[1], dataset_A[2]
@@ -480,5 +551,212 @@ def generalise(dataset_A, support_set_A, dataset_B): #THIS ONE IS NOT CORRECTED 
     print("Accuracy of the model #", i, ": ", round(acc * 100, 2), "%", sep="")
 
 
+#### VISUALISING GOOD VS BAD SUPPORT SETS ####
+def visualize_samples_rgb(good_pickle, bad_pickle, x, region):
+    with open(good_pickle, 'rb') as data:
+        best_set = pickle.load(data)
+    with open(bad_pickle, 'rb') as data:
+        worst_set = pickle.load(data)
+
+    f, axarr = plt.subplots(2, 5, sharey=True, constrained_layout=True, figsize=(10, 6))
+    axarr[0,0].imshow(rgb_plot(x[best_set[region][0]]))
+    axarr[0,0].set_title(str(best_set[region][0]))
+    axarr[0,1].imshow(rgb_plot(x[best_set[region][1]]))
+    axarr[0,1].set_title(str(best_set[region][1]))
+    axarr[0,2].imshow(rgb_plot(x[best_set[region][2]]))
+    axarr[0,2].set_title(str(best_set[region][2]))
+    axarr[0,3].imshow(rgb_plot(x[best_set[region][3]]))
+    axarr[0,3].set_title(str(best_set[region][3]))
+    axarr[0,4].imshow(rgb_plot(x[best_set[region][4]]))
+    axarr[0,4].set_title(str(best_set[region][4]))
+    axarr[1,0].imshow(rgb_plot(x[best_set[region][5]]))
+    axarr[1,0].set_title(str(best_set[region][5]))
+    axarr[1,1].imshow(rgb_plot(x[best_set[region][6]]))
+    axarr[1,1].set_title(str(best_set[region][6]))
+    axarr[1,2].imshow(rgb_plot(x[best_set[region][7]]))
+    axarr[1,2].set_title(str(best_set[region][7]))
+    axarr[1,3].imshow(rgb_plot(x[best_set[region][8]]))
+    axarr[1,3].set_title(str(best_set[region][8]))
+    axarr[1,4].imshow(rgb_plot(x[best_set[region][9]]))
+    axarr[1,4].set_title(str(best_set[region][9]))
+    plt.suptitle(("Good support set for region " + (regions[region].split('_')[0]).capitalize()))
+    plt.show()
+
+    f, axarr = plt.subplots(2, 5, sharey=True, constrained_layout=True, figsize=(10, 6))
+    axarr[0,0].imshow(rgb_plot(x[worst_set[region][0]]))
+    axarr[0,0].set_title(str(worst_set[region][0]))
+    axarr[0,1].imshow(rgb_plot(x[worst_set[region][1]]))
+    axarr[0,1].set_title(str(worst_set[region][1]))
+    axarr[0,2].imshow(rgb_plot(x[worst_set[region][2]]))
+    axarr[0,2].set_title(str(worst_set[region][2]))
+    axarr[0,3].imshow(rgb_plot(x[worst_set[region][3]]))
+    axarr[0,3].set_title(str(worst_set[region][3]))
+    axarr[0,4].imshow(rgb_plot(x[worst_set[region][4]]))
+    axarr[0,4].set_title(str(worst_set[region][4]))
+    axarr[1,0].imshow(rgb_plot(x[worst_set[region][5]]))
+    axarr[1,0].set_title(str(worst_set[region][5]))
+    axarr[1,1].imshow(rgb_plot(x[worst_set[region][6]]))
+    axarr[1,1].set_title(str(worst_set[region][6]))
+    axarr[1,2].imshow(rgb_plot(x[worst_set[region][7]]))
+    axarr[1,2].set_title(str(worst_set[region][7]))
+    axarr[1,3].imshow(rgb_plot(x[worst_set[region][8]]))
+    axarr[1,3].set_title(str(worst_set[region][8]))
+    axarr[1,4].imshow(rgb_plot(x[worst_set[region][9]]))
+    axarr[1,4].set_title(str(worst_set[region][9]))
+    plt.suptitle(("Bad support set for region " + (regions[region].split('_')[0]).capitalize()))
+    plt.show()
+def visualize_samples_fdi(good_pickle, bad_pickle, x, region):
+    with open(good_pickle, 'rb') as data:
+        best_set = pickle.load(data)
+    with open(bad_pickle, 'rb') as data:
+        worst_set = pickle.load(data)
+
+    f, axarr = plt.subplots(2, 5, sharey=True, constrained_layout=True, figsize=(10, 6))
+    axarr[0, 0].imshow(fdi(x[best_set[region][0]]))
+    axarr[0, 0].set_title(str(best_set[region][0]))
+    axarr[0, 1].imshow(fdi(x[best_set[region][1]]))
+    axarr[0, 1].set_title(str(best_set[region][1]))
+    axarr[0, 2].imshow(fdi(x[best_set[region][2]]))
+    axarr[0, 2].set_title(str(best_set[region][2]))
+    axarr[0, 3].imshow(fdi(x[best_set[region][3]]))
+    axarr[0, 3].set_title(str(best_set[region][3]))
+    axarr[0, 4].imshow(fdi(x[best_set[region][4]]))
+    axarr[0, 4].set_title(str(best_set[region][4]))
+    axarr[1, 0].imshow(fdi(x[best_set[region][5]]))
+    axarr[1, 0].set_title(str(best_set[region][5]))
+    axarr[1, 1].imshow(fdi(x[best_set[region][6]]))
+    axarr[1, 1].set_title(str(best_set[region][6]))
+    axarr[1, 2].imshow(fdi(x[best_set[region][7]]))
+    axarr[1, 2].set_title(str(best_set[region][7]))
+    axarr[1, 3].imshow(fdi(x[best_set[region][8]]))
+    axarr[1, 3].set_title(str(best_set[region][8]))
+    axarr[1, 4].imshow(fdi(x[best_set[region][9]]))
+    axarr[1, 4].set_title(str(best_set[region][9]))
+    plt.suptitle(("Good support set for region " + (regions[region].split('_')[0]).capitalize()))
+    plt.show()
+
+    f, axarr = plt.subplots(2, 5, sharey=True, constrained_layout=True, figsize=(10, 6))
+    axarr[0, 0].imshow(fdi(x[worst_set[region][0]]))
+    axarr[0, 0].set_title(str(worst_set[region][0]))
+    axarr[0, 1].imshow(fdi(x[worst_set[region][1]]))
+    axarr[0, 1].set_title(str(worst_set[region][1]))
+    axarr[0, 2].imshow(fdi(x[worst_set[region][2]]))
+    axarr[0, 2].set_title(str(worst_set[region][2]))
+    axarr[0, 3].imshow(fdi(x[worst_set[region][3]]))
+    axarr[0, 3].set_title(str(worst_set[region][3]))
+    axarr[0, 4].imshow(fdi(x[worst_set[region][4]]))
+    axarr[0, 4].set_title(str(worst_set[region][4]))
+    axarr[1, 0].imshow(fdi(x[worst_set[region][5]]))
+    axarr[1, 0].set_title(str(worst_set[region][5]))
+    axarr[1, 1].imshow(fdi(x[worst_set[region][6]]))
+    axarr[1, 1].set_title(str(worst_set[region][6]))
+    axarr[1, 2].imshow(fdi(x[worst_set[region][7]]))
+    axarr[1, 2].set_title(str(worst_set[region][7]))
+    axarr[1, 3].imshow(fdi(x[worst_set[region][8]]))
+    axarr[1, 3].set_title(str(worst_set[region][8]))
+    axarr[1, 4].imshow(fdi(x[worst_set[region][9]]))
+    axarr[1, 4].set_title(str(worst_set[region][9]))
+    plt.suptitle(("Bad support set for region " + (regions[region].split('_')[0]).capitalize()))
+    plt.show()
+def visualize_samples_ndvi(good_pickle, bad_pickle, x, region):
+    with open(good_pickle, 'rb') as data:
+        best_set = pickle.load(data)
+    with open(bad_pickle, 'rb') as data:
+        worst_set = pickle.load(data)
+
+    f, axarr = plt.subplots(2, 5, sharey=True, constrained_layout=True, figsize=(10, 6))
+    axarr[0, 0].imshow(ndvi(x[best_set[region][0]]))
+    axarr[0, 0].set_title(str(best_set[region][0]))
+    axarr[0, 1].imshow(ndvi(x[best_set[region][1]]))
+    axarr[0, 1].set_title(str(best_set[region][1]))
+    axarr[0, 2].imshow(ndvi(x[best_set[region][2]]))
+    axarr[0, 2].set_title(str(best_set[region][2]))
+    axarr[0, 3].imshow(ndvi(x[best_set[region][3]]))
+    axarr[0, 3].set_title(str(best_set[region][3]))
+    axarr[0, 4].imshow(ndvi(x[best_set[region][4]]))
+    axarr[0, 4].set_title(str(best_set[region][4]))
+    axarr[1, 0].imshow(ndvi(x[best_set[region][5]]))
+    axarr[1, 0].set_title(str(best_set[region][5]))
+    axarr[1, 1].imshow(ndvi(x[best_set[region][6]]))
+    axarr[1, 1].set_title(str(best_set[region][6]))
+    axarr[1, 2].imshow(ndvi(x[best_set[region][7]]))
+    axarr[1, 2].set_title(str(best_set[region][7]))
+    axarr[1, 3].imshow(ndvi(x[best_set[region][8]]))
+    axarr[1, 3].set_title(str(best_set[region][8]))
+    axarr[1, 4].imshow(ndvi(x[best_set[region][9]]))
+    axarr[1, 4].set_title(str(best_set[region][9]))
+    plt.suptitle(("Good support set for region " + (regions[region].split('_')[0]).capitalize()))
+    plt.show()
+
+    f, axarr = plt.subplots(2, 5, sharey=True, constrained_layout=True, figsize=(10, 6))
+    axarr[0, 0].imshow(ndvi(x[worst_set[region][0]]))
+    axarr[0, 0].set_title(str(worst_set[region][0]))
+    axarr[0, 1].imshow(ndvi(x[worst_set[region][1]]))
+    axarr[0, 1].set_title(str(worst_set[region][1]))
+    axarr[0, 2].imshow(ndvi(x[worst_set[region][2]]))
+    axarr[0, 2].set_title(str(worst_set[region][2]))
+    axarr[0, 3].imshow(ndvi(x[worst_set[region][3]]))
+    axarr[0, 3].set_title(str(worst_set[region][3]))
+    axarr[0, 4].imshow(ndvi(x[worst_set[region][4]]))
+    axarr[0, 4].set_title(str(worst_set[region][4]))
+    axarr[1, 0].imshow(ndvi(x[worst_set[region][5]]))
+    axarr[1, 0].set_title(str(worst_set[region][5]))
+    axarr[1, 1].imshow(ndvi(x[worst_set[region][6]]))
+    axarr[1, 1].set_title(str(worst_set[region][6]))
+    axarr[1, 2].imshow(ndvi(x[worst_set[region][7]]))
+    axarr[1, 2].set_title(str(worst_set[region][7]))
+    axarr[1, 3].imshow(ndvi(x[worst_set[region][8]]))
+    axarr[1, 3].set_title(str(worst_set[region][8]))
+    axarr[1, 4].imshow(ndvi(x[worst_set[region][9]]))
+    axarr[1, 4].set_title(str(worst_set[region][9]))
+    plt.suptitle(("Bad support set for region " + (regions[region].split('_')[0]).capitalize()))
+    plt.show()
+reg = 5
+# visualize_samples_rgb('datasets/best_support_sets_v2.pickle', 'datasets/worst_support_sets_v2.pickle', datasets[reg][0], reg)
+# visualize_samples_fdi('datasets/best_support_sets_v3.pickle', 'datasets/worst_support_sets_v3.pickle', datasets[reg][0], reg)
+# visualize_samples_ndvi('datasets/best_support_sets_v3.pickle', 'datasets/worst_support_sets_v3.pickle', datasets[reg][0], reg)
+
+def evaluate_variability_with_shots(taskmodel, region, length):
+    start = timer()
+    variances = []
+    medians = []
+    x_axis = []
+    accuracies_plot =[]
+    shots = [1, 5, 10, 20, 50]
+
+    for i in shots:
+        print(i)
+        b, w, accuracies = evaluate_shots_quality(datasets[region], taskmodel, i, length, verbose = False)
+        x_axis.append(i)
+        variances.append(np.var(accuracies))
+        medians.append(np.median(accuracies))
+        accuracies_plot.append(accuracies)
+
+    # plt.plot(x_axis, variances)
+    # plt.title(("Region: " + (datasets[region][2][0].split('_')[0]).capitalize()))
+    # plt.xlabel("Number of runs")
+    # plt.ylabel("Variance")
+    # plt.tight_layout()
+    # plt.show()
+    #
+    # plt.plot(x_axis, medians)
+    # plt.title(("Region: " + (datasets[region][2][0].split('_')[0]).capitalize()))
+    # plt.xlabel("Number of runs")
+    # plt.ylabel("Median")
+    # plt.tight_layout()
+    # plt.show()
+
+    plt.boxplot(accuracies_plot, positions=x_axis, showmeans=True)
+    plt.title(("Region: " + (datasets[region][2][0].split('_')[0]).capitalize()))
+    plt.ylabel("Accuracy")
+    plt.xlabel("Number of shots")
+    plt.ylim(0, 1)
+    plt.tight_layout()
+    plt.show()
+
+    end = timer()
+    print("Time elapsed:", (end - start)/60, "minutes")
+
+evaluate_variability_with_shots(taskmodel, region=0, length=5)
 
 # %%
