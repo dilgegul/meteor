@@ -32,5 +32,5 @@ dataset.append(ID_s)
 
 print(list(dataset[0][0].size()))
 
-with open('datasets/durban_dataset_l1c.pickle', 'wb') as output:
+with open('durban_dataset_l1c.pickle', 'wb') as output:
     pickle.dump(dataset, output)
