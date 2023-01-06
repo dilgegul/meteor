@@ -34,7 +34,7 @@ for i in range(len(regions)):
 # note Resnet accuracies for plotting
 resnet_accuracies = [0.5044, 0.9086, 0.8348, 0.9475, 0.9489, 0.8179]
 
-# uncomment below code when the raw data is needed
+# uncomment below when the raw data is needed
 """
 # load raw datasets from Marmara, Accra and Durban (13 bands)
 with open("datasets/raw_marmara_dataset.pickle", 'rb') as data:
@@ -528,9 +528,9 @@ def extract_best_and_worst(load_name, save_name, number_of_sets, *, if_save: boo
 
     return all_sets
 
-
-# BURDA KALDIM
 def hist_samples():
+    """Plot histograms of good and bad samples to see if there are any emerging patterns
+        """
     best_and_worst_200 = extract_best_and_worst(load_name='datasets/accuracies_and_idx_15-12-2022.pickle', save_name='datasets/best_and_worst_support_sets_15-12-2022.pickle', number_of_sets=200, if_save = False)
     for i in range(len(regions)):
         good_sets_region = best_and_worst_200[0][i]
@@ -546,9 +546,23 @@ def hist_samples():
         plt.hist(all_bad_samples, bins=np.arange(0, len(datasets[i][1]) + 10, 10))
         plt.title("Bad samples, region: " + (regions[i].split('_')[0]).capitalize())
         plt.show()
-# hist_samples()
 
 def visualise_full_sets_separately(size):
+    """Plot (per region) good and bad support sets on 1 axis to see if there are any emerging patterns (1 image will be
+    "size" amount of support sets plotted on separate plots)
+
+        Parameters
+        ----------
+        size : how many support sets to be plotted
+
+        Prints/plots
+        -------
+        1D plot of support set sample locations (plots)
+
+        Returns
+        -------
+        n/a
+        """
     best_and_worst_200 = extract_best_and_worst(load_name='datasets/accuracies_and_idx_15-12-2022.pickle', save_name='datasets/best_and_worst_support_sets_15-12-2022.pickle', number_of_sets=200, if_save = False)
     for i in range(len(regions)):
         good_sets_region = best_and_worst_200[0][i][-size:]
@@ -570,9 +584,23 @@ def visualise_full_sets_separately(size):
         # plt.yticks([1.208, 1.192], ['Best', 'Worst'],rotation=20)
         # plt.vlines(x= np.count_nonzero(datasets[i][1]), ymin=0, ymax=2, linewidth=2)
         plt.show()
-# visualise_full_sets_separately(size=8)
 
 def visualise_full_sets_together(size):
+    """Plot good and bad support sets of each region in one plot to compare regions (1 image will be 1 plot per region
+    with their "size" amount of support sets wihtin each region's plot)
+
+        Parameters
+        ----------
+        size : how many support sets to be plotted
+
+        Prints/plots
+        -------
+        1D plots of support sets sample locations (plots)
+
+        Returns
+        -------
+        n/a
+        """
     best_and_worst_200 = extract_best_and_worst(load_name='datasets/accuracies_and_idx_15-12-2022.pickle', save_name='datasets/best_and_worst_support_sets_15-12-2022.pickle', number_of_sets=200, if_save = False)
 
     fig, axs = plt.subplots(6, 1, figsize=(7.5, 20))
@@ -593,33 +621,26 @@ def visualise_full_sets_together(size):
             ax.vlines(x=np.count_nonzero(datasets[i][1]), ymin=0, ymax=2, linewidth=2)
             ax.set_title((regions[i].split('_')[0]).capitalize())
     plt.show()
-# visualise_full_sets_together(10)
-
-def generalise(dataset_A, support_set_A, dataset_B): #THIS ONE IS NOT CORRECTED FOR TEST SETS
-    x_A, y_A, ID_A = dataset_A[0], dataset_A[1], dataset_A[2]
-    x_B, y_B, ID_B = dataset_B[0], dataset_B[1], dataset_B[2]
-    y_A, y_B = np.array(y_A), np.array(y_B)
-    x_A, x_B = torch.stack(x_A), torch.stack(x_B)
-    #combined_shots = np.array([ 131 , 257 , 258,  132 , 680, 1011 ,1006 ,1008, 1003,  792])  # shortest euclidean distance
-    combined_shots = support_set_A
-    shots = int(len(combined_shots)/2)
-    X_support = x_A[combined_shots]
-    y_support = torch.hstack([torch.ones(shots), torch.zeros(shots)])
-
-    # fit and predict
-    taskmodel.fit(X_support, y_support)
-    y_pred, y_score = taskmodel.predict(x_B)
-    y_pred = [int(a) for a in y_pred]
-    print(y_pred)
-
-    acc = accuracy_score(y_pred, y_B)
-    print("Training region: ", ID_A[0].split('_')[0])
-    print("Test region: ", ID_B[0].split('_')[0])
-    #print("Number of shots: ", shots)
-    print("Accuracy of the model #", i, ": ", round(acc * 100, 2), "%", sep="")
 
 #### VISUALISING GOOD VS BAD SUPPORT SETS ####
 def visualize_samples_rgb(pickled, x, region, set):
+    """Visualize good and bad support sets in RGB
+
+        Parameters
+        ----------
+        pickled : the name of the pickle file with the best and worst support set information (str)
+        x : torch data set with image pixel data (torch data set)
+        region : integer corresponding to the region of interest (int)
+        set : the index of which specific support set to be plotted (int)
+
+        Prints/plots
+        -------
+        visuals for each sample - one image with good and one image with bad support set (plots)
+
+        Returns
+        -------
+        n/a
+        """
     with open(pickled, 'rb') as data:
         sets_dataset = pickle.load(data)
 
@@ -671,6 +692,23 @@ def visualize_samples_rgb(pickled, x, region, set):
     plt.suptitle(("Bad support set for region " + (regions[region].split('_')[0]).capitalize() + " (in RGB)"))
     plt.show()
 def visualize_samples_fdi(pickled, x, region, set):
+    """Visualize good and bad support sets in FDI
+
+        Parameters
+        ----------
+        pickled : the name of the pickle file with the best and worst support set information (str)
+        x : torch data set with image pixel data (torch data set)
+        region : integer corresponding to the region of interest (int)
+        set : the index of which specific support set to be plotted (int)
+
+        Prints/plots
+        -------
+        visuals for each sample - one image with good and one image with bad support set (plots)
+
+        Returns
+        -------
+        n/a
+        """
     with open(pickled, 'rb') as data:
         sets_dataset = pickle.load(data)
 
@@ -722,6 +760,23 @@ def visualize_samples_fdi(pickled, x, region, set):
     plt.suptitle(("Bad support set for region " + (regions[region].split('_')[0]).capitalize() + " (in FDI)"))
     plt.show()
 def visualize_samples_ndvi(pickled, x, region, set):
+    """Visualize good and bad support sets in NDVI
+
+        Parameters
+        ----------
+        pickled : the name of the pickle file with the best and worst support set information (str)
+        x : torch data set with image pixel data (torch data set)
+        region : integer corresponding to the region of interest (int)
+        set : the index of which specific support set to be plotted (int)
+
+        Prints/plots
+        -------
+        visuals for each sample - one image with good and one image with bad support set (plots)
+
+        Returns
+        -------
+        n/a
+        """
     with open(pickled, 'rb') as data:
         sets_dataset = pickle.load(data)
 
@@ -772,13 +827,32 @@ def visualize_samples_ndvi(pickled, x, region, set):
     axarr[1, 4].set_title(str(sets_dataset[1][region][set][9]))
     plt.suptitle(("Bad support set for region " + (regions[region].split('_')[0]).capitalize() + " (in NDVI)"))
     plt.show()
-reg = 5
+# reg = 5
 # visualize_samples_rgb('datasets/best_and_worst_support_sets_14-12-2022.pickle', datasets[reg][0], reg, 1)
 # visualize_samples_rgb('datasets/best_and_worst_support_sets_14-12-2022.pickle', durban_dataset_l1c[0], reg, 1)
 # visualize_samples_fdi('datasets/best_and_worst_support_sets_14-12-2022.pickle', datasets[reg][0], reg, 1)
 # visualize_samples_ndvi('datasets/best_and_worst_support_sets_14-12-2022.pickle', datasets[reg][0], reg, 1)
 
 def evaluate_variability_with_shots(taskmodel, region, length, shots):
+    """Plot increasing accuracy and decreasing variability with increasing number of shots
+
+        Parameters
+        ----------
+        taskmodel : METEOR model to be used (model)
+        region : integer corresponding to the region of interest (int)
+        length : how many runs to be performed for each step to demonstrate variability (int)
+        shots : list of number of shots to be used at each step (list)
+
+        Prints/plots
+        -------
+        time elapsed, plot with boxplots of accuracies at each step and a line for representing the Resnet's accuracy
+            (plot)
+
+        Returns
+        -------
+        n/a
+        """
+
     start = timer()
     variances = []
     medians = []
@@ -805,15 +879,35 @@ def evaluate_variability_with_shots(taskmodel, region, length, shots):
     end = timer()
     print("Time elapsed:", (end - start)/60, "minutes")
 
-shots = [1, 3, 5, 7, 10, 15, 20, 30, 40, 50, 75, 100]
+# shots = [1, 3, 5, 7, 10, 15, 20, 30, 40, 50, 75, 100]
 # evaluate_variability_with_shots(taskmodel, region=0, length=25, shots=shots)
 # evaluate_variability_with_shots(taskmodel, region=2, length=25, shots=shots)
 # evaluate_variability_with_shots(taskmodel, region=3, length=25, shots=shots)
 # evaluate_variability_with_shots(taskmodel, region=4, length=25, shots=shots)
 # evaluate_variability_with_shots(taskmodel, region=5, length=25, shots=shots)
 
+#### ACTIVE LEARNING EXPERIMENTS ####
+def single_instance_oracle(region, shot, length, seed, range_value):
+    """Scan several random additions to the support set and choose the one maximizing accuracy increase, this  method
+    is to be the ideal situation of sample addition
 
-def single_instance_oracle(region, shots, length, seed, range_value):
+        Parameters
+        ----------
+        region : integer corresponding to the region of interest (int)
+        shot : number of samples from each class to be added to the support set (int)
+        length : how many sample addition steps to be performed (int)
+        seed : random seed (int)
+        range_value : how many random additions to be tested to find the best one at each step (int)
+
+        Prints/plots
+        -------
+        highest accuracy achieved
+
+        Returns
+        -------
+        define the plot for this method (unshown yet)
+        """
+
     # start_time = timer()
     x, y, ID = datasets[region][0], datasets[region][1], datasets[region][2]
     y = np.array(y)
@@ -825,13 +919,13 @@ def single_instance_oracle(region, shots, length, seed, range_value):
     x = torch.stack(x)
 
     np.random.seed(seed)
-    debris_shots = np.random.choice(debris_idx, size=shots, replace=False)
-    non_debris_shots = np.random.choice(non_debris_idx, size=shots, replace=False)
+    debris_shots = np.random.choice(debris_idx, size=shot, replace=False)
+    non_debris_shots = np.random.choice(non_debris_idx, size=shot, replace=False)
     combined_shots = np.concatenate((debris_shots, non_debris_shots), axis=None)
     test_index = list(set(all_index) - set(combined_shots))
 
     X_support = x[combined_shots]
-    y_support = torch.hstack([torch.ones(shots), torch.zeros(shots)])
+    y_support = torch.hstack([torch.ones(shot), torch.zeros(shot)])
     X_test = x[test_index]
     y_test = y[test_index]
 
@@ -850,7 +944,7 @@ def single_instance_oracle(region, shots, length, seed, range_value):
         chosen_additions = []
         for i in range(range_value):
             # print(i+1, "th random support set out of ", range_value)
-            additional_samples = np.random.choice(test_index, size=shots*2, replace=False)
+            additional_samples = np.random.choice(test_index, size=shot*2, replace=False)
             combined_shots_new = np.concatenate((combined_shots, additional_samples), axis=None)
             test_index_new = list(set(all_index) - set(combined_shots_new))
             X_support_new = x[combined_shots_new]
@@ -876,9 +970,9 @@ def single_instance_oracle(region, shots, length, seed, range_value):
         combined_shots = np.concatenate((combined_shots, chosen_additions), axis=None)
         y_support = torch.hstack([y_support, torch.FloatTensor(y[chosen_additions])])
 
-    print("Highest acc: ", highest_accuracy)
+    print("Highest acc (= ending point for SIO): ", highest_accuracy)
 
-    plt.plot(np.arange(shots,len(accuracies)*shots+1,shots), accuracies, label="METEOR sio")
+    plt.plot(np.arange(shot,len(accuracies)*shot+1,shot), accuracies, label="METEOR sio")
     plt.title(("Region: " + (datasets[region][2][0].split('_')[0]).capitalize() + " (seed: " + str(seed) + ")"))
     plt.ylabel("Accuracy")
     plt.xlabel("Number of shots")
@@ -893,7 +987,24 @@ def single_instance_oracle(region, shots, length, seed, range_value):
     # to_pickle.append(X_support_new)
     # with open('datasets/sio_seed_21_shot_1.pickle', 'wb') as output:
     #     pickle.dump(to_pickle, output)
-def random_sampling(region, shots, length, seed):
+def random_sampling(region, shot, length, seed):
+    """Make random additions at each step, this represents the worst case scenario
+
+        Parameters
+        ----------
+        region : integer corresponding to the region of interest (int)
+        shot : number of samples from each class to be added to the support set (int)
+        length : how many sample addition steps to be performed (int)
+        seed : random seed (int)
+
+        Prints/plots
+        -------
+        n/a
+
+        Returns
+        -------
+        define the plot for this method (unshown yet)
+        """
     # start_time = timer()
     x, y, ID = datasets[region][0], datasets[region][1], datasets[region][2]
     y = np.array(y)
@@ -905,13 +1016,13 @@ def random_sampling(region, shots, length, seed):
     x = torch.stack(x)
 
     np.random.seed(seed)
-    debris_shots = np.random.choice(debris_idx, size=shots, replace=False)
-    non_debris_shots = np.random.choice(non_debris_idx, size=shots, replace=False)
+    debris_shots = np.random.choice(debris_idx, size=shot, replace=False)
+    non_debris_shots = np.random.choice(non_debris_idx, size=shot, replace=False)
     combined_shots = np.concatenate((debris_shots, non_debris_shots), axis=None)
     test_index = list(set(all_index) - set(combined_shots))
 
     X_support = x[combined_shots]
-    y_support = torch.hstack([torch.ones(shots), torch.zeros(shots)])
+    y_support = torch.hstack([torch.ones(shot), torch.zeros(shot)])
     X_test = x[test_index]
     y_test = y[test_index]
 
@@ -926,7 +1037,7 @@ def random_sampling(region, shots, length, seed):
     all_additions = []
     accuracies = [initial_acc]
     for j in tqdm(range(length)):
-        additional_samples = np.random.choice(test_index, size=shots * 2, replace=False)
+        additional_samples = np.random.choice(test_index, size=shot * 2, replace=False)
         combined_shots_new = np.concatenate((combined_shots, additional_samples), axis=None)
         test_index_new = list(set(all_index) - set(combined_shots_new))
         X_support_new = x[combined_shots_new]
@@ -950,7 +1061,7 @@ def random_sampling(region, shots, length, seed):
         combined_shots = np.concatenate((combined_shots, additional_samples), axis=None)
         y_support = torch.hstack([y_support, torch.FloatTensor(y[additional_samples])])
 
-    plt.plot(np.arange(shots,len(accuracies)*shots+1,shots), accuracies, label="METEOR random")
+    plt.plot(np.arange(shot,len(accuracies)*shot+1,shot), accuracies, label="METEOR random")
     plt.title(("Region: " + (datasets[region][2][0].split('_')[0]).capitalize() + " (seed: " + str(seed) + ")"))
     plt.ylabel("Accuracy")
     plt.xlabel("Number of shots")
@@ -960,9 +1071,40 @@ def random_sampling(region, shots, length, seed):
     # plt.legend(loc="lower right")
     # plt.show()
 def entropy(x):
-  """ basic entropy """
+  """Define the entropy function, using the symmetrical version
+
+    Parameters
+    ----------
+    x : input for the entropy to be calculated (float)
+
+    Prints/plots
+    -------
+    n/a
+
+    Returns
+    -------
+    entropy value for the input (float)
+    """
   return -(x*math.log2(x) + (1-x)*math.log2(1-x))
-def basic_entropy(region, shots, length, seed):
+def basic_entropy(region, shot, length, seed):
+    """Pick the samples with the highest entropy as additions for each step, the ideal situation would be these samples
+    representing the samples the model is most uncertain of and would increase accuracy at each step
+
+        Parameters
+        ----------
+        region : integer corresponding to the region of interest (int)
+        shot : number of samples from each class to be added to the support set (int)
+        length : how many sample addition steps to be performed (int)
+        seed : random seed (int)
+
+        Prints/plots
+        -------
+        n/a
+
+        Returns
+        -------
+        define the plot for this method (unshown yet)
+        """
     # start_time = timer()
     x, y, ID = datasets[region][0], datasets[region][1], datasets[region][2]
     y = np.array(y)
@@ -974,13 +1116,13 @@ def basic_entropy(region, shots, length, seed):
     x = torch.stack(x)
 
     np.random.seed(seed)
-    debris_shots = np.random.choice(debris_idx, size=shots, replace=False)
-    non_debris_shots = np.random.choice(non_debris_idx, size=shots, replace=False)
+    debris_shots = np.random.choice(debris_idx, size=shot, replace=False)
+    non_debris_shots = np.random.choice(non_debris_idx, size=shot, replace=False)
     combined_shots = np.concatenate((debris_shots, non_debris_shots), axis=None)
     test_index = list(set(all_index) - set(combined_shots))
 
     X_support = x[combined_shots]
-    y_support = torch.hstack([torch.ones(shots), torch.zeros(shots)])
+    y_support = torch.hstack([torch.ones(shot), torch.zeros(shot)])
     X_test = x[test_index]
     y_test = y[test_index]
 
@@ -996,7 +1138,7 @@ def basic_entropy(region, shots, length, seed):
     accuracies = [initial_acc]
     for j in tqdm(range(length)):
         entropies = [entropy(k) for k in y_score.detach().numpy()[0]]
-        additional_samples = np.argpartition(entropies, len(entropies)-(shots*2))[-(shots*2):]   # this will be the shots*2 samples with highest entropy
+        additional_samples = np.argpartition(entropies, len(entropies)-(shot*2))[-(shot*2):]   # this will be the shots*2 samples with highest entropy
         combined_shots_new = np.concatenate((combined_shots, additional_samples), axis=None)
         test_index_new = list(set(all_index) - set(combined_shots_new))
         X_support_new = x[combined_shots_new]
@@ -1020,12 +1162,31 @@ def basic_entropy(region, shots, length, seed):
         combined_shots = np.concatenate((combined_shots, additional_samples), axis=None)
         y_support = torch.hstack([y_support, torch.FloatTensor(y[additional_samples])])
 
-    plt.plot(np.arange(shots,len(accuracies)*shots+1,shots), accuracies, label="METEOR entropy")
+    plt.plot(np.arange(shot,len(accuracies)*shot+1,shot), accuracies, label="METEOR entropy")
     plt.title(("Region: " + (datasets[region][2][0].split('_')[0]).capitalize() + " (seed: " + str(seed) + ")"))
     plt.ylabel("Accuracy")
     plt.xlabel("Number of shots")
     plt.tight_layout()
-def ensemble_stdev_3(region, shots, length, seed):
+def ensemble_stdev_3(region, shot, length, seed):
+    """Run 3 models with the different initial support sets and use their mean accuracy at each step, choose the
+    additions as the samples which the standard deviation within 3 models' outputs is the highest for, this ideally
+    represents the samples which are hard to classify without seeing
+
+        Parameters
+        ----------
+        region : integer corresponding to the region of interest (int)
+        shot : number of samples from each class to be added to the support set (int)
+        length : how many sample addition steps to be performed (int)
+        seed : random seed (int)
+
+        Prints/plots
+        -------
+        n/a
+
+        Returns
+        -------
+        define the plot for this method (unshown yet)
+        """
     # define the different taskmodels
     taskmodel_1 = METEOR(model, verbose=True, inner_step_size=0.4, gradient_steps=20, device='cuda')
     taskmodel_2 = METEOR(model, verbose=True, inner_step_size=0.4, gradient_steps=20, device='cuda')
@@ -1043,29 +1204,29 @@ def ensemble_stdev_3(region, shots, length, seed):
 
     # for taskmodel 1
     np.random.seed(seed)
-    debris_shots_1 = np.random.choice(debris_idx, size=shots, replace=False)
-    non_debris_shots_1 = np.random.choice(non_debris_idx, size=shots, replace=False)
+    debris_shots_1 = np.random.choice(debris_idx, size=shot, replace=False)
+    non_debris_shots_1 = np.random.choice(non_debris_idx, size=shot, replace=False)
     combined_shots_1 = np.concatenate((debris_shots_1, non_debris_shots_1), axis=None)
     X_support_1 = x[combined_shots_1]
-    y_support_1 = torch.hstack([torch.ones(shots), torch.zeros(shots)])
+    y_support_1 = torch.hstack([torch.ones(shot), torch.zeros(shot)])
     taskmodel_1.fit(X_support_1, y_support_1)
 
     # for taskmodel 2
     np.random.seed(seed*7)
-    debris_shots_2 = np.random.choice(debris_idx, size=shots, replace=False)
-    non_debris_shots_2 = np.random.choice(non_debris_idx, size=shots, replace=False)
+    debris_shots_2 = np.random.choice(debris_idx, size=shot, replace=False)
+    non_debris_shots_2 = np.random.choice(non_debris_idx, size=shot, replace=False)
     combined_shots_2 = np.concatenate((debris_shots_2, non_debris_shots_2), axis=None)
     X_support_2 = x[combined_shots_2]
-    y_support_2 = torch.hstack([torch.ones(shots), torch.zeros(shots)])
+    y_support_2 = torch.hstack([torch.ones(shot), torch.zeros(shot)])
     taskmodel_2.fit(X_support_2, y_support_2)
 
     # for taskmodel 3
     np.random.seed(seed*17)
-    debris_shots_3 = np.random.choice(debris_idx, size=shots, replace=False)
-    non_debris_shots_3 = np.random.choice(non_debris_idx, size=shots, replace=False)
+    debris_shots_3 = np.random.choice(debris_idx, size=shot, replace=False)
+    non_debris_shots_3 = np.random.choice(non_debris_idx, size=shot, replace=False)
     combined_shots_3 = np.concatenate((debris_shots_3, non_debris_shots_3), axis=None)
     X_support_3 = x[combined_shots_3]
-    y_support_3 = torch.hstack([torch.ones(shots), torch.zeros(shots)])
+    y_support_3 = torch.hstack([torch.ones(shot), torch.zeros(shot)])
     taskmodel_3.fit(X_support_3, y_support_3)
 
     # predict all
@@ -1118,12 +1279,31 @@ def ensemble_stdev_3(region, shots, length, seed):
         new_acc = accuracy_score(y_pred, y_test)
         accuracies.append(new_acc)
 
-    plt.plot(np.arange(shots,len(accuracies)*shots+1,shots), accuracies, label="METEOR ensemble-3")
+    plt.plot(np.arange(shot,len(accuracies)*shot+1,shot), accuracies, label="METEOR ensemble-3")
     plt.title(("Region: " + (datasets[region][2][0].split('_')[0]).capitalize() + " (seed: " + str(seed) + ")"))
     plt.ylabel("Accuracy")
     plt.xlabel("Number of shots")
     plt.tight_layout()
 def ensemble_stdev_5(region, shots, length, seed):
+    """Run 5 models with the different initial support sets and use their mean accuracy at each step, choose the
+    additions as the samples which the standard deviation within 5 models' outputs is the highest for, this ideally
+    represents the samples which are hard to classify without seeing
+
+        Parameters
+        ----------
+        region : integer corresponding to the region of interest (int)
+        shot : number of samples from each class to be added to the support set (int)
+        length : how many sample addition steps to be performed (int)
+        seed : random seed (int)
+
+        Prints/plots
+        -------
+        n/a
+
+        Returns
+        -------
+        define the plot for this method (unshown yet)
+        """
     # define the different taskmodels
     taskmodel_1 = METEOR(model, verbose=True, inner_step_size=0.4, gradient_steps=20, device='cuda')
     taskmodel_2 = METEOR(model, verbose=True, inner_step_size=0.4, gradient_steps=20, device='cuda')
@@ -1262,14 +1442,14 @@ def ensemble_stdev_5(region, shots, length, seed):
 # plt.legend(loc="lower right")
 # plt.show()
 
-# 19x1+1 = length x shots +2 or +1
-plt.plot(np.arange(1,19*1+2,1), resnet_accuracies[4]*np.ones(19*1+1), label="ResNet-18")
-single_instance_oracle(region=4, shots=1, length=19, seed=18, range_value=5)
-random_sampling(region=4, shots=1, length=19, seed=18)
-# basic_entropy(region=4, shots=1, length=19, seed=18)
-ensemble_stdev_3(region=4, shots=1, length=19, seed=18)
-ensemble_stdev_5(region=4, shots=1, length=19, seed=18)
-plt.legend(loc="lower right")
-plt.show()
+### 19x1+1 = length x shots +2 or +1 ###
+# plt.plot(np.arange(1,19*1+2,1), resnet_accuracies[4]*np.ones(19*1+1), label="ResNet-18")
+# single_instance_oracle(region=4, shots=1, length=19, seed=18, range_value=5)
+# random_sampling(region=4, shots=1, length=19, seed=18)
+# # basic_entropy(region=4, shots=1, length=19, seed=18)
+# ensemble_stdev_3(region=4, shots=1, length=19, seed=18)
+# ensemble_stdev_5(region=4, shots=1, length=19, seed=18)
+# plt.legend(loc="lower right")
+# plt.show()
 
 # %%
