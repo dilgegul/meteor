@@ -193,12 +193,13 @@ class METEOR(nn.Module):
         else:
             raise NotImplementedError()
 
-        #print(probas)
         probas_fixed = probas >= 0.5
         probas_fixed = probas_fixed.bool().int()
         #predictions = probas.argmax(0)
         predictions = probas_fixed
-        #print(self.labels[predictions][0])
+
+        # print(probas)
+        # print(self.labels[predictions][0])
 
         return self.labels[predictions][0], probas
 

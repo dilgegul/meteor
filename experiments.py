@@ -12,7 +12,9 @@ import time
 from appearance.appearance import *
 from visualization import *
 from operator import itemgetter
+from collections import Counter
 import math
+from representation_resnet_features import *
 
 # make METEOR use deterministic methods to eliminate variability with same support set
 torch.use_deterministic_algorithms(True)
@@ -106,6 +108,7 @@ def calculate_accuracy(dataset, shot, taskmodel):
     plt.show()
 
     return round(acc*100,2), cohen_kappa_score(y_pred, y_test)
+# calculate_accuracy(datasets[4], 5, taskmodel)
 
 def calculate_average_accuracy(dataset, shot, taskmodel, length):
     """Calculate the average accuracy of the model on various randomly selected support sets to evaluate variability
@@ -158,7 +161,6 @@ def calculate_average_accuracy(dataset, shot, taskmodel, length):
         taskmodel.fit(X_support, y_support)
         y_pred, y_score = taskmodel.predict(X_test)
 
-
         y_pred = [int(a) for a in y_pred]
         acc = accuracy_score(y_pred,y_test)
         accuracies.append(acc)
@@ -173,7 +175,7 @@ def calculate_average_accuracy(dataset, shot, taskmodel, length):
 
     return round(avg_acc*100,2)
 
-def calculate_accuracy_specified(dataset, shot, taskmodel, chosen_support_set):
+def calculate_accuracy_specified(dataset, taskmodel, chosen_support_set):
     """Calculate the accuracy of the model on a chosen support set
 
         Parameters
@@ -190,17 +192,23 @@ def calculate_accuracy_specified(dataset, shot, taskmodel, chosen_support_set):
         """
 
     # select support images
+    chosen_support_set = np.array(chosen_support_set)
     x, y, ID = dataset[0], dataset[1], dataset[2]
+    y = np.array(y)
     x = torch.stack(x)
-    chosen_support_set = x[chosen_support_set]
-    X_support = chosen_support_set
-    y_support = torch.hstack([torch.ones(shot), torch.zeros(shot)]).long()
+    all_index = np.arange(0, len(y), 1)
+    test_index = list(set(all_index) - set(chosen_support_set))
+    X_support = x[chosen_support_set]
+    y_support = y[chosen_support_set]
+    X_test = x[test_index]
+    y_test = y[test_index]
+    y_support = torch.Tensor(y_support)
 
     # fit and predict
     taskmodel.fit(X_support, y_support)
-    y_pred, y_score = taskmodel.predict(x)
+    y_pred, y_score = taskmodel.predict(X_test)
     y_pred = [int(a) for a in y_pred]
-    acc = accuracy_score(y_pred,y)
+    acc = accuracy_score(y_pred,y_test)
 
     return round(acc*100,2)
 
@@ -308,7 +316,6 @@ def evaluate_shots_quality(dataset, shot, taskmodel, length, *, verbose: bool = 
         X_test = x[test_index]
         y_test = y[test_index]
 
-
         # fit and predict
         taskmodel.fit(X_support, y_support)
         y_pred, y_score = taskmodel.predict(X_test)
@@ -319,7 +326,7 @@ def evaluate_shots_quality(dataset, shot, taskmodel, length, *, verbose: bool = 
             print("Region: ", ID[0].split('_')[0])
             print("Number of shots: ", shot)
             print("Accuracy of the model #", i, ": ", round(acc*100,2), "%", sep="")
-        accuracies.append(acc)
+        accuracies.append(round(acc*100,2))
 
     best_id = np.argmax(accuracies)
     worst_id = np.argmin(accuracies)
@@ -342,7 +349,7 @@ def evaluate_shots_quality(dataset, shot, taskmodel, length, *, verbose: bool = 
     return best_combination, worst_combination, accuracies
 
 def evaluate_variability_on_same_support_set(dataset, taskmodel, shot,  length, *, verbose: bool = False):
-    """Assess the variability of the METEOR model when dteerminism is not enabled by plotting its accuracy on the same
+    """Assess the variability of the METEOR model when determinism is not enabled by plotting its accuracy on the same
     support set on different runs
 
         Parameters
@@ -483,7 +490,7 @@ def discover_support_sets(name, shot, runs):
 
     end = timer()
     print("Time elapsed:", (end - start)/3600, "hours")
-# discover_support_sets(name='datasets/accuracies_and_idx_15-12-2022.pickle', shots=5, runs=5000)
+# discover_support_sets(name='datasets/accuracies_and_idx_1-shot_09-01-2023.pickle', shot=1, runs=1500)
 
 def extract_best_and_worst(load_name, save_name, number_of_sets, *, if_save: bool = False):
     """Extracts the best and worst performing support sets from a database of various support sets and their accuracies
@@ -829,7 +836,7 @@ def visualize_samples_ndvi(pickled, x, region, set):
     plt.show()
 # reg = 5
 # visualize_samples_rgb('datasets/best_and_worst_support_sets_14-12-2022.pickle', datasets[reg][0], reg, 1)
-# visualize_samples_rgb('datasets/best_and_worst_support_sets_14-12-2022.pickle', durban_dataset_l1c[0], reg, 1)
+# # visualize_samples_rgb('datasets/best_and_worst_support_sets_14-12-2022.pickle', durban_dataset_l1c[0], reg, 1)
 # visualize_samples_fdi('datasets/best_and_worst_support_sets_14-12-2022.pickle', datasets[reg][0], reg, 1)
 # visualize_samples_ndvi('datasets/best_and_worst_support_sets_14-12-2022.pickle', datasets[reg][0], reg, 1)
 
@@ -878,7 +885,6 @@ def evaluate_variability_with_shots(taskmodel, region, length, shots):
 
     end = timer()
     print("Time elapsed:", (end - start)/60, "minutes")
-
 # shots = [1, 3, 5, 7, 10, 15, 20, 30, 40, 50, 75, 100]
 # evaluate_variability_with_shots(taskmodel, region=0, length=25, shots=shots)
 # evaluate_variability_with_shots(taskmodel, region=2, length=25, shots=shots)
@@ -1060,6 +1066,7 @@ def random_sampling(region, shot, length, seed):
         test_index = list(set(all_index) - set(additional_samples))
         combined_shots = np.concatenate((combined_shots, additional_samples), axis=None)
         y_support = torch.hstack([y_support, torch.FloatTensor(y[additional_samples])])
+
 
     plt.plot(np.arange(shot,len(accuracies)*shot+1,shot), accuracies, label="METEOR random")
     plt.title(("Region: " + (datasets[region][2][0].split('_')[0]).capitalize() + " (seed: " + str(seed) + ")"))
@@ -1247,7 +1254,7 @@ def ensemble_stdev_3(region, shot, length, seed):
     for j in tqdm(range(length)):
         # going to be the disagreement between the 3 different y_scores -> then we choose the additional samples by getting the samples w/ highest disagreement
         standard_deviations = [np.std(x) for x in zip(np.array(y_score_1.detach().numpy()[0]), np.array(y_score_2.detach().numpy()[0]), np.array(y_score_3.detach().numpy()[0]))]
-        additional_samples = np.argpartition(standard_deviations, len(standard_deviations) - (shots * 2))[-(shots * 2):]  # this will be the shots*2 samples with highest std. dev.
+        additional_samples = np.argpartition(standard_deviations, len(standard_deviations) - (shot * 2))[-(shot * 2):]  # this will be the shots*2 samples with highest std. dev.
         all_additions.append(additional_samples)
 
         combined_shots_1 = np.concatenate((combined_shots_1, additional_samples), axis=None)
@@ -1284,7 +1291,7 @@ def ensemble_stdev_3(region, shot, length, seed):
     plt.ylabel("Accuracy")
     plt.xlabel("Number of shots")
     plt.tight_layout()
-def ensemble_stdev_5(region, shots, length, seed):
+def ensemble_stdev_5(region, shot, length, seed):
     """Run 5 models with the different initial support sets and use their mean accuracy at each step, choose the
     additions as the samples which the standard deviation within 5 models' outputs is the highest for, this ideally
     represents the samples which are hard to classify without seeing
@@ -1323,47 +1330,47 @@ def ensemble_stdev_5(region, shots, length, seed):
 
     # for taskmodel 1
     np.random.seed(seed)
-    debris_shots_1 = np.random.choice(debris_idx, size=shots, replace=False)
-    non_debris_shots_1 = np.random.choice(non_debris_idx, size=shots, replace=False)
+    debris_shots_1 = np.random.choice(debris_idx, size=shot, replace=False)
+    non_debris_shots_1 = np.random.choice(non_debris_idx, size=shot, replace=False)
     combined_shots_1 = np.concatenate((debris_shots_1, non_debris_shots_1), axis=None)
     X_support_1 = x[combined_shots_1]
-    y_support_1 = torch.hstack([torch.ones(shots), torch.zeros(shots)])
+    y_support_1 = torch.hstack([torch.ones(shot), torch.zeros(shot)])
     taskmodel_1.fit(X_support_1, y_support_1)
 
     # for taskmodel 2
     np.random.seed(seed*7)
-    debris_shots_2 = np.random.choice(debris_idx, size=shots, replace=False)
-    non_debris_shots_2 = np.random.choice(non_debris_idx, size=shots, replace=False)
+    debris_shots_2 = np.random.choice(debris_idx, size=shot, replace=False)
+    non_debris_shots_2 = np.random.choice(non_debris_idx, size=shot, replace=False)
     combined_shots_2 = np.concatenate((debris_shots_2, non_debris_shots_2), axis=None)
     X_support_2 = x[combined_shots_2]
-    y_support_2 = torch.hstack([torch.ones(shots), torch.zeros(shots)])
+    y_support_2 = torch.hstack([torch.ones(shot), torch.zeros(shot)])
     taskmodel_2.fit(X_support_2, y_support_2)
 
     # for taskmodel 3
     np.random.seed(seed*17)
-    debris_shots_3 = np.random.choice(debris_idx, size=shots, replace=False)
-    non_debris_shots_3 = np.random.choice(non_debris_idx, size=shots, replace=False)
+    debris_shots_3 = np.random.choice(debris_idx, size=shot, replace=False)
+    non_debris_shots_3 = np.random.choice(non_debris_idx, size=shot, replace=False)
     combined_shots_3 = np.concatenate((debris_shots_3, non_debris_shots_3), axis=None)
     X_support_3 = x[combined_shots_3]
-    y_support_3 = torch.hstack([torch.ones(shots), torch.zeros(shots)])
+    y_support_3 = torch.hstack([torch.ones(shot), torch.zeros(shot)])
     taskmodel_3.fit(X_support_3, y_support_3)
 
     # for taskmodel 4
     np.random.seed(seed * 70)
-    debris_shots_4 = np.random.choice(debris_idx, size=shots, replace=False)
-    non_debris_shots_4 = np.random.choice(non_debris_idx, size=shots, replace=False)
+    debris_shots_4 = np.random.choice(debris_idx, size=shot, replace=False)
+    non_debris_shots_4 = np.random.choice(non_debris_idx, size=shot, replace=False)
     combined_shots_4 = np.concatenate((debris_shots_4, non_debris_shots_4), axis=None)
     X_support_4 = x[combined_shots_4]
-    y_support_4 = torch.hstack([torch.ones(shots), torch.zeros(shots)])
+    y_support_4 = torch.hstack([torch.ones(shot), torch.zeros(shot)])
     taskmodel_4.fit(X_support_4, y_support_4)
 
     # for taskmodel 5
     np.random.seed(seed * 47)
-    debris_shots_5 = np.random.choice(debris_idx, size=shots, replace=False)
-    non_debris_shots_5 = np.random.choice(non_debris_idx, size=shots, replace=False)
+    debris_shots_5 = np.random.choice(debris_idx, size=shot, replace=False)
+    non_debris_shots_5 = np.random.choice(non_debris_idx, size=shot, replace=False)
     combined_shots_5 = np.concatenate((debris_shots_5, non_debris_shots_5), axis=None)
     X_support_5 = x[combined_shots_5]
-    y_support_5 = torch.hstack([torch.ones(shots), torch.zeros(shots)])
+    y_support_5 = torch.hstack([torch.ones(shot), torch.zeros(shot)])
     taskmodel_5.fit(X_support_5, y_support_5)
 
     # predict all
@@ -1386,7 +1393,7 @@ def ensemble_stdev_5(region, shots, length, seed):
     for j in tqdm(range(length)):
         # going to be the disagreement between the 3 different y_scores -> then we choose the additional samples by getting the samples w/ highest disagreement
         standard_deviations = [np.std(x) for x in zip(np.array(y_score_1.detach().numpy()[0]), np.array(y_score_2.detach().numpy()[0]), np.array(y_score_3.detach().numpy()[0]), np.array(y_score_4.detach().numpy()[0]), np.array(y_score_5.detach().numpy()[0]))]
-        additional_samples = np.argpartition(standard_deviations, len(standard_deviations) - (shots * 2))[-(shots * 2):]  # this will be the shots*2 samples with highest std. dev.
+        additional_samples = np.argpartition(standard_deviations, len(standard_deviations) - (shot * 2))[-(shot * 2):]  # this will be the shots*2 samples with highest std. dev.
         all_additions.append(additional_samples)
 
         combined_shots_1 = np.concatenate((combined_shots_1, additional_samples), axis=None)
@@ -1430,26 +1437,121 @@ def ensemble_stdev_5(region, shots, length, seed):
         new_acc = accuracy_score(y_pred, y_test)
         accuracies.append(new_acc)
 
-    plt.plot(np.arange(shots,len(accuracies)*shots+1,shots), accuracies, label="METEOR ensemble-5")
+    plt.plot(np.arange(shot,len(accuracies)*shot+1,shot), accuracies, label="METEOR ensemble-5")
     plt.title(("Region: " + (datasets[region][2][0].split('_')[0]).capitalize() + " (seed: " + str(seed) + ")"))
     plt.ylabel("Accuracy")
     plt.xlabel("Number of shots")
     plt.tight_layout()
+def unseen_clusters(region, shot, length, seed, n_clusters):
+    x, y, ID = datasets[region][0], datasets[region][1], datasets[region][2]
+    y = np.array(y)
+    y_bool_debris = y == 1
+    y_bool_nondebris = y == 0
+    debris_idx = np.where(y_bool_debris)[0]
+    non_debris_idx = np.where(y_bool_nondebris)[0]
+    all_index = np.concatenate((debris_idx, non_debris_idx), axis=None)
+    x = torch.stack(x)
 
-# single_instance_oracle(region=4, shots=1, length=19, seed=21, range_value=int(len(datasets[4][1])/2))
-# random_sampling(region=4, shots=1, length=19, seed=21)
-# basic_entropy(region=4, shots=1, length=19, seed=21)
-# plt.legend(loc="lower right")
-# plt.show()
+    np.random.seed(seed)
+    debris_shots = np.random.choice(debris_idx, size=shot, replace=False)
+    non_debris_shots = np.random.choice(non_debris_idx, size=shot, replace=False)
+    combined_shots = np.concatenate((debris_shots, non_debris_shots), axis=None)
+    test_index = list(set(all_index) - set(combined_shots))
 
-### 19x1+1 = length x shots +2 or +1 ###
-# plt.plot(np.arange(1,19*1+2,1), resnet_accuracies[4]*np.ones(19*1+1), label="ResNet-18")
-# single_instance_oracle(region=4, shots=1, length=19, seed=18, range_value=5)
-# random_sampling(region=4, shots=1, length=19, seed=18)
-# # basic_entropy(region=4, shots=1, length=19, seed=18)
-# ensemble_stdev_3(region=4, shots=1, length=19, seed=18)
-# ensemble_stdev_5(region=4, shots=1, length=19, seed=18)
-# plt.legend(loc="lower right")
-# plt.show()
+    X_support = x[combined_shots]
+    y_support = torch.hstack([torch.ones(shot), torch.zeros(shot)])
+    X_test = x[test_index]
+    y_test = y[test_index]
+
+    # fit and predict
+    taskmodel.fit(X_support, y_support)
+    y_pred, y_score = taskmodel.predict(X_test)
+
+    y_pred = [int(a) for a in y_pred]
+    initial_acc = accuracy_score(y_pred, y_test)
+    # print("initial acc: ", initial_acc)
+
+    feature_vectors_debris, feature_vectors_nondebris, feature_vectors_all, y_all = get_feature_vectors(datasets[region])
+    cluster_labels = cluster_all_features(feature_vectors_all, n_clusters=n_clusters)
+
+    all_additions = []
+    accuracies = [initial_acc]
+    selected_labels = list(cluster_labels[combined_shots])
+    for j in tqdm(range(length)):
+        if len(selected_labels) < n_clusters:
+            unseen_labels = set(range(n_clusters)) - set(selected_labels)
+            if unseen_labels:
+                possible_samples = [i for i, label in enumerate(cluster_labels) if label in unseen_labels and label not in selected_labels]
+            else:
+                possible_samples = [i for i, label in enumerate(cluster_labels) if label not in selected_labels]
+            additional_samples = np.random.choice(possible_samples, shot*2, replace=False)
+            selected_labels.extend([cluster_labels[i] for i in additional_samples])
+        else:
+            label_counts = Counter(selected_labels)
+            min_label_count = min(label_counts.values())
+            least_common_labels = [k for k, v in label_counts.items() if v == min_label_count]
+            possible_samples = [i for i, label in enumerate(cluster_labels) if label in least_common_labels]
+            additional_samples = np.random.choice(possible_samples, shot*2, replace=False)
+            selected_labels.extend([cluster_labels[i] for i in additional_samples])
+        combined_shots = np.concatenate((combined_shots, additional_samples), axis=None)
+        test_index_new = list(set(all_index) - set(combined_shots))
+        X_support_new = x[combined_shots]
+        y_support_new = torch.hstack([y_support, torch.FloatTensor(y[additional_samples])])
+        X_test_new = x[test_index_new]
+        y_test_new = y[test_index_new]
+
+        # fit and predict
+        taskmodel.fit(X_support_new, y_support_new)
+        y_pred_new, y_score_new = taskmodel.predict(X_test_new)
+
+        y_pred_new = [int(a) for a in y_pred_new]
+        new_acc = accuracy_score(y_pred_new, y_test_new)
+
+        all_additions.append(additional_samples)
+        accuracies.append(new_acc)
+        y_support = y_support_new
+
+    print("final labels: ", cluster_labels[combined_shots])
+
+    plt.plot(np.arange(shot, len(accuracies) * shot + 1, shot), accuracies, label="METEOR clustered")
+    plt.title(("Region: " + (datasets[region][2][0].split('_')[0]).capitalize() + " (seed: " + str(seed) + ")"))
+    plt.ylabel("Accuracy")
+    plt.xlabel("Number of shots")
+    # plt.ylim(0, 1)
+    plt.tight_layout()
+    # plt.hlines(y=resnet_accuracies[region], xmin=1, xmax=len(accuracies), linewidth=2, colors=Red, label="ResNet-18")
+    # plt.legend(loc="lower right")
+    # plt.show()
+
+# ### 19x1+1 = length x shots +2 or +1 ###
+reg = 4
+plt.plot(np.arange(1,19*1+2,1), resnet_accuracies[reg]*np.ones(19*1+1), label="ResNet-18")
+# single_instance_oracle(region=reg, shot=1, length=19, seed=15, range_value=50)
+random_sampling(region=reg, shot=1, length=19, seed=1)
+# # basic_entropy(region=reg, shot=1, length=19, seed=18)
+# # ensemble_stdev_3(region=reg, shot=1, length=19, seed=18)
+# # ensemble_stdev_5(region=reg, shot=1, length=19, seed=18)
+unseen_clusters(region=reg, shot=1, length=19, seed=1, n_clusters=10)
+plt.legend(loc="lower right")
+plt.show()
+
+# ### Visualize feature space + clusters
+# feature_vectors_debris, feature_vectors_nondebris, feature_vectors_all, y_all = get_feature_vectors(datasets[5])
+# pca_visualization(pca_components=3, feature_vectors_all=feature_vectors_all, y_all=y_all)
+# cluster_all_features(feature_vectors_all, n_clusters=10, visualize=True)
+
+# ### Compare cluster vs random selected support sets
+# reg = 5
+# feature_vectors_debris, feature_vectors_nondebris, feature_vectors_all, y_all = get_feature_vectors(datasets[reg])
+# accuracies_clust = []
+# for k in range(10):
+#     cluster_labels = cluster_all_features(feature_vectors_all, n_clusters=6)
+#     chosen_support_set = choose_random_cluster_samples(cluster_labels)
+#     print(chosen_support_set)
+#     accuracies_clust.append(calculate_accuracy_specified(datasets[reg], taskmodel, chosen_support_set))
+# print(accuracies_clust, np.average(accuracies_clust), np.std(accuracies_clust))
+#
+# best_combination, worst_combination, accuracies_rand = evaluate_shots_quality(datasets[reg], shot=3, taskmodel=taskmodel, length=10)
+# print(accuracies_rand, np.average(accuracies_rand), np.std(accuracies_rand))
 
 # %%
