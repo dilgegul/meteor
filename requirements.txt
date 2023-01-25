@@ -2,3 +2,4 @@ torch==1.9.1
 torchmeta==1.8.0
 torchvision==0.10.1
 tqdm
+--extra-index-url=https://packagecloud.io/github/git-lfs/pypi/simple
