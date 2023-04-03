@@ -27,7 +27,7 @@ class METEOR(nn.Module):
         self.device = device
         self.activation = activation
 
-        self.labels = None
+        self.labels = np.array([0., 1.])
         self.batch_size = batch_size
 
     def fit(self, X, Y):
@@ -44,7 +44,7 @@ class METEOR(nn.Module):
             return self.predict_one_vs_one(x, batch_size)
 
     def fit_one_vs_all_old(self, X, Y):
-        self.labels = np.unique(Y)
+        # self.labels = np.unique(Y)
         self.model.train()
 
         torch.manual_seed(self.seed)
@@ -77,7 +77,7 @@ class METEOR(nn.Module):
             self.params.append(param)
 
     def fit_one_vs_all(self, X, Y):
-        self.labels = np.unique(Y)
+        # self.labels = np.unique(Y)
         self.model.train()
 
         # to be filled by self.fit()
@@ -102,7 +102,7 @@ class METEOR(nn.Module):
                                                                            y.to(self.device))
         self.params.append(param)
     def fit_one_vs_one(self, X_all, Y_all):
-        self.labels = np.unique(Y_all)
+        # self.labels = np.unique(Y_all)
         self.model.train()
 
         torch.manual_seed(self.seed)

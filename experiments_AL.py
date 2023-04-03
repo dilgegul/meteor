@@ -1264,8 +1264,8 @@ def ensemble_stdev_3_v2(region, shot, length, seed, variability, *, add_fill: bo
     plt.xlabel("Number of shots")
     plt.tight_layout()
 
-# TO-DO: add variability with randomness 
-def random_clusters_and_samples(region, shot, length, seed, n_clusters, resnet="trained", realistic=False, percentage_debris = 5):  # same as random sampling?
+### without variability
+def random_clusters_and_samples(region, shot, length, seed, n_clusters, resnet="trained", realistic=False, percentage_debris = 5):
     x, y, ID = datasets[region][0], datasets[region][1], datasets[region][2]
     y = np.array(y)
     y_bool_debris = y == 1
@@ -1330,13 +1330,13 @@ def random_clusters_and_samples(region, shot, length, seed, n_clusters, resnet="
 
     print("final labels: ", cluster_labels[combined_shots])
 
-    plt.plot(np.arange(shot, len(accuracies) * shot + 1, shot), accuracies, label="METEOR clustered")
+    plt.plot(np.arange(shot, len(accuracies) * shot + 1, shot), accuracies, label="METEOR random clusters & random samples")
     plt.title(("Region: " + (datasets[region][2][0].split('_')[0]).capitalize() + " (seed: " + str(seed) + ")"))
     plt.ylabel("Accuracy")
     plt.xlabel("Number of shots")
     plt.xticks(np.arange(0,21,5))
     plt.tight_layout()
-# similarly, random clusters + uncertain samples will be the same as choosing uncertain samples from the whole data?
+# random clusters + uncertain samples will be the same as choosing uncertain samples from the whole data
 def unseen_clusters_random_samples(region, shot, length, seed, n_clusters, resnet="trained", realistic=False, percentage_debris = 5):
     x, y, ID = datasets[region][0], datasets[region][1], datasets[region][2]
     y = np.array(y)
@@ -1414,7 +1414,7 @@ def unseen_clusters_random_samples(region, shot, length, seed, n_clusters, resne
 
     print("final labels: ", cluster_labels[combined_shots])
 
-    plt.plot(np.arange(shot, len(accuracies) * shot + 1, shot), accuracies, label="METEOR clustered")
+    plt.plot(np.arange(shot, len(accuracies) * shot + 1, shot), accuracies, label="METEOR unseen clusters & random samples")
     plt.title(("Region: " + (datasets[region][2][0].split('_')[0]).capitalize() + " (seed: " + str(seed) + ")"))
     plt.ylabel("Accuracy")
     plt.xlabel("Number of shots")
@@ -1521,17 +1521,377 @@ def unseen_clusters_uncertain_samples(region, shot, length, seed, n_clusters, re
     print("final support set: ", combined_shots)
     print("final labels: ", cluster_labels[combined_shots])
 
-    plt.plot(np.arange(shot, len(accuracies) * shot + 1, shot), accuracies, label="METEOR clustered")
+    plt.plot(np.arange(shot, len(accuracies) * shot + 1, shot), accuracies, label="METEOR unseen clusters & uncertain samples")
     plt.title(("Region: " + (datasets[region][2][0].split('_')[0]).capitalize() + " (seed: " + str(seed) + ")"))
     plt.ylabel("Accuracy")
     plt.xlabel("Number of shots")
     plt.xticks(np.arange(0,21,5))
     plt.tight_layout()
     
+### with variability
+def random_clusters_and_samples_v(region, shot, length, seed, n_clusters, variability, resnet="trained", realistic=False, percentage_debris = 5, add_fill = True):
+    x, y, ID = datasets[region][0], datasets[region][1], datasets[region][2]
+    y = np.array(y)
+    y_bool_debris = y == 1
+    y_bool_nondebris = y == 0
+    debris_idx = np.where(y_bool_debris)[0]
+    non_debris_idx = np.where(y_bool_nondebris)[0]
+    all_index = np.concatenate((debris_idx, non_debris_idx), axis=None)
+    x = torch.stack(x)
 
+    various_runs = []
+    for i in range(variability):
+        print("Run #", i+1)
+        np.random.seed(seed+i*17)
+
+        if realistic == True:
+            # update for more realistic case (10% debris)
+            debris_size = round(percentage_debris * 538 / (100-percentage_debris))
+            debris_idx = np.random.choice(debris_idx, size=debris_size, replace=False)
+            all_index = np.concatenate((debris_idx, non_debris_idx), axis=None)
+
+        debris_shots = np.random.choice(debris_idx, size=shot, replace=False)
+        non_debris_shots = np.random.choice(non_debris_idx, size=shot, replace=False)
+        combined_shots = np.concatenate((debris_shots, non_debris_shots), axis=None)
+        test_index = list(set(all_index) - set(combined_shots))
+
+        X_support = x[combined_shots]
+        y_support = torch.hstack([torch.ones(shot), torch.zeros(shot)])
+        X_test = x[test_index]
+        y_test = y[test_index]
+
+        # fit and predict
+        taskmodel.fit(X_support, y_support)
+        y_pred, y_score = taskmodel.predict(X_test)
+
+        y_pred = [int(a) for a in y_pred]
+        initial_acc = accuracy_score(y_pred, y_test)
+        # print("initial acc: ", initial_acc)
+
+        if resnet == 'trained':
+            feature_vectors_debris, feature_vectors_nondebris, feature_vectors_all, y_all = get_feature_vectors_trained_resnet(datasets[region])
+        if resnet == 'random':
+            feature_vectors_debris, feature_vectors_nondebris, feature_vectors_all, y_all = get_feature_vectors_untrained_resnet(datasets[region])
+        cluster_labels = cluster_all_features(feature_vectors_all, n_clusters=n_clusters)
+
+        all_additions = []
+        accuracies = [initial_acc]
+        for j in tqdm(range(length)):
+            additional_samples = np.random.choice(test_index, shot*2, replace=False)
+            combined_shots = np.concatenate((combined_shots, additional_samples), axis=None)
+            test_index_new = list(set(all_index) - set(combined_shots))
+            X_support_new = x[combined_shots]
+            y_support_new = torch.hstack([y_support, torch.FloatTensor(y[additional_samples])])
+            X_test_new = x[test_index_new]
+            y_test_new = y[test_index_new]
+
+            # fit and predict
+            taskmodel.fit(X_support_new, y_support_new)
+            y_pred_new, y_score_new = taskmodel.predict(X_test_new)
+
+            y_pred_new = [int(a) for a in y_pred_new]
+            new_acc = accuracy_score(y_pred_new, y_test_new)
+
+            all_additions.append(additional_samples)
+            accuracies.append(new_acc)
+            y_support = y_support_new
+
+        print("final labels: ", cluster_labels[combined_shots])
+        various_runs.append(accuracies)
+
+    mean, sigma = lists_average_and_stddev(various_runs)
+
+    plt.plot(np.arange(shot,len(mean)*shot+1,shot), mean, label="METEOR random clusters & random samples")
+    if add_fill == True:
+        plt.fill_between(np.arange(shot,len(mean)*shot+1,shot), np.array(mean)+np.array(sigma), np.array(mean)-np.array(sigma), facecolor='yellow', alpha=0.5, label='Variability')
+    plt.title(("Region: " + (datasets[region][2][0].split('_')[0]).capitalize() + " (seed: " + str(seed) + ")"))
+    plt.ylabel("Accuracy")
+    plt.xlabel("Number of shots")
+    plt.xticks(np.arange(0,21,5))
+    plt.tight_layout()
+def unseen_clusters_random_samples_v(region, shot, length, seed, n_clusters, variability, resnet="trained", realistic=False, percentage_debris = 5, add_fill = True):
+    x, y, ID = datasets[region][0], datasets[region][1], datasets[region][2]
+    y = np.array(y)
+    y_bool_debris = y == 1
+    y_bool_nondebris = y == 0
+    debris_idx = np.where(y_bool_debris)[0]
+    non_debris_idx = np.where(y_bool_nondebris)[0]
+    all_index = np.concatenate((debris_idx, non_debris_idx), axis=None)
+    x = torch.stack(x)
+
+    various_runs = []
+    for i in range(variability):
+        print("Run #", i+1)
+        np.random.seed(seed+i*17)
+
+        if realistic == True:
+            # update for more realistic case (10% debris)
+            debris_size = round(percentage_debris * 538 / (100-percentage_debris))
+            debris_idx = np.random.choice(debris_idx, size=debris_size, replace=False)
+            all_index = np.concatenate((debris_idx, non_debris_idx), axis=None)
+
+        debris_shots = np.random.choice(debris_idx, size=shot, replace=False)
+        non_debris_shots = np.random.choice(non_debris_idx, size=shot, replace=False)
+        combined_shots = np.concatenate((debris_shots, non_debris_shots), axis=None)
+        test_index = list(set(all_index) - set(combined_shots))
+
+        X_support = x[combined_shots]
+        y_support = torch.hstack([torch.ones(shot), torch.zeros(shot)])
+        X_test = x[test_index]
+        y_test = y[test_index]
+
+        # fit and predict
+        taskmodel.fit(X_support, y_support)
+        y_pred, y_score = taskmodel.predict(X_test)
+
+        y_pred = [int(a) for a in y_pred]
+        initial_acc = accuracy_score(y_pred, y_test)
+        # print("initial acc: ", initial_acc)
+        
+        if resnet == 'trained':
+            feature_vectors_debris, feature_vectors_nondebris, feature_vectors_all, y_all = get_feature_vectors_trained_resnet(datasets[region])
+        if resnet == 'random':
+            feature_vectors_debris, feature_vectors_nondebris, feature_vectors_all, y_all = get_feature_vectors_untrained_resnet(datasets[region])
+        cluster_labels = cluster_all_features(feature_vectors_all, n_clusters=n_clusters)
+
+        all_additions = []
+        accuracies = [initial_acc]
+        selected_labels = list(cluster_labels[combined_shots])
+        for j in tqdm(range(length)):
+            unseen_labels = set(range(n_clusters)) - set(selected_labels)
+            if len(unseen_labels) > 0:
+                possible_samples = [i for i, label in enumerate(cluster_labels) if label in unseen_labels and i in test_index]
+                additional_samples = np.random.choice(possible_samples, shot*2, replace=False)
+                selected_labels.extend([cluster_labels[i] for i in additional_samples])
+            else:
+                label_counts = Counter(selected_labels)
+                min_label_count = min(label_counts.values())
+                least_common_labels = [k for k, v in label_counts.items() if v == min_label_count]
+                possible_samples = [i for i, label in enumerate(cluster_labels) if label in least_common_labels and i in test_index]
+                additional_samples = np.random.choice(possible_samples, shot*2, replace=False)
+                selected_labels.extend([cluster_labels[i] for i in additional_samples])
+            combined_shots = np.concatenate((combined_shots, additional_samples), axis=None)
+            test_index_new = list(set(all_index) - set(combined_shots))
+            X_support_new = x[combined_shots]
+            y_support_new = torch.hstack([y_support, torch.FloatTensor(y[additional_samples])])
+            X_test_new = x[test_index_new]
+            y_test_new = y[test_index_new]
+
+            # fit and predict
+            taskmodel.fit(X_support_new, y_support_new)
+            y_pred_new, y_score_new = taskmodel.predict(X_test_new)
+
+            y_pred_new = [int(a) for a in y_pred_new]
+            new_acc = accuracy_score(y_pred_new, y_test_new)
+
+            all_additions.append(additional_samples)
+            accuracies.append(new_acc)
+            y_support = y_support_new
+
+        print("final labels: ", cluster_labels[combined_shots])
+        various_runs.append(accuracies)
+
+    mean, sigma = lists_average_and_stddev(various_runs)
+
+    plt.plot(np.arange(shot,len(mean)*shot+1,shot), mean, label="METEOR unseen clusters & random samples")
+    if add_fill == True:
+        plt.fill_between(np.arange(shot,len(mean)*shot+1,shot), np.array(mean)+np.array(sigma), np.array(mean)-np.array(sigma), facecolor='yellow', alpha=0.5, label='Variability')
+    plt.title(("Region: " + (datasets[region][2][0].split('_')[0]).capitalize() + " (seed: " + str(seed) + ")"))
+    plt.ylabel("Accuracy")
+    plt.xlabel("Number of shots")
+    plt.xticks(np.arange(0,21,5))
+    # plt.ylim(0, 1)
+    plt.tight_layout()
+    # plt.hlines(y=resnet_accuracies[region], xmin=1, xmax=len(accuracies), linewidth=2, colors=Red, label="ResNet-18")
+    # plt.legend(loc="lower right")
+    # plt.show()
+def unseen_clusters_uncertain_samples_v(region, shot, length, seed, n_clusters, variability, resnet="trained", realistic=False, percentage_debris = 5, add_fill = True):
+    x, y, ID = datasets[region][0], datasets[region][1], datasets[region][2]
+    y = np.array(y)
+    y_bool_debris = y == 1
+    y_bool_nondebris = y == 0
+    debris_idx = np.where(y_bool_debris)[0]
+    non_debris_idx = np.where(y_bool_nondebris)[0]
+    all_index_og = np.concatenate((debris_idx, non_debris_idx), axis=None)
+    all_index = np.concatenate((debris_idx, non_debris_idx), axis=None)
+    x = torch.stack(x)
+
+    various_runs = []
+    for i in range(variability):
+        print("Run #", i+1)
+        np.random.seed(seed+i*17)
+
+        if realistic == True:
+            # update for more realistic case (10% debris)
+            debris_size = round(percentage_debris * 538 / (100-percentage_debris))
+            debris_idx = np.random.choice(debris_idx, size=debris_size, replace=False)
+            all_index = np.concatenate((debris_idx, non_debris_idx), axis=None)
+
+        debris_shots = np.random.choice(debris_idx, size=shot, replace=False)
+        non_debris_shots = np.random.choice(non_debris_idx, size=shot, replace=False)
+        combined_shots = np.concatenate((debris_shots, non_debris_shots), axis=None)
+        test_index = list(set(all_index) - set(combined_shots))
+
+        X_support = x[combined_shots]
+        y_support = torch.hstack([torch.ones(shot), torch.zeros(shot)])
+        X_test = x[test_index]
+        y_test = y[test_index]
+
+        # fit and predict
+        taskmodel.fit(X_support, y_support)
+        y_pred, y_score = taskmodel.predict(X_test)
+
+        y_pred = [int(a) for a in y_pred]
+        initial_acc = accuracy_score(y_pred, y_test)
+        # print("initial acc: ", initial_acc)
+
+        # to make a full y_score list:
+        X_all = x[all_index_og]
+        y_pred_all, y_score_all = taskmodel.predict(X_all)
+        
+        if resnet == 'trained':
+            feature_vectors_debris, feature_vectors_nondebris, feature_vectors_all, y_all = get_feature_vectors_trained_resnet(datasets[region])
+        if resnet == 'random':
+            feature_vectors_debris, feature_vectors_nondebris, feature_vectors_all, y_all = get_feature_vectors_untrained_resnet(datasets[region])
+        cluster_labels = cluster_all_features(feature_vectors_all, n_clusters=n_clusters)
+
+        all_additions = []
+        accuracies = [initial_acc]
+        selected_labels = list(cluster_labels[combined_shots])
+        for j in tqdm(range(length)):
+            # print("selected labels:", selected_labels)
+            unseen_labels = set(range(n_clusters)) - set(selected_labels)
+            # print("unseen labels", unseen_labels)
+            if len(unseen_labels) > 0:
+                possible_samples = [i for i, label in enumerate(cluster_labels) if label in unseen_labels and i in test_index]
+                # print("possible samples in unseen: ", possible_samples)
+                # print("text index: ", test_index)
+                # print(len(y_score_all.detach().numpy()[0]))
+                entropies = [[entropy(k) for k in y_score_all.detach().numpy()[0][possible_samples]]]
+                additional_samples = np.argpartition(entropies, len(entropies)-(shot*2))[0][-(shot*2):]   # this will be the shots*2 samples with highest entropy
+                additional_samples = [possible_samples[i] for i in additional_samples]
+                selected_labels.extend([cluster_labels[i] for i in additional_samples])
+            else:
+                label_counts = Counter(selected_labels)
+                min_label_count = min(label_counts.values())
+                least_common_labels = [k for k, v in label_counts.items() if v == min_label_count]
+                possible_samples = [i for i, label in enumerate(cluster_labels) if label in least_common_labels and i in test_index]
+                # print("possible samples in else", possible_samples)
+                # print(len(y_score_all.detach().numpy()[0]))
+                entropies = [[entropy(k) for k in y_score_all.detach().numpy()[0][possible_samples]]]
+                additional_samples = np.argpartition(entropies, len(entropies)-(shot*2))[0][-(shot*2):]   # this will be the shots*2 samples with highest entropy
+                additional_samples = [possible_samples[i] for i in additional_samples]
+                selected_labels.extend([cluster_labels[i] for i in additional_samples])
+            # print("new additions", additional_samples)
+            combined_shots = np.concatenate((combined_shots, additional_samples), axis=None)
+            test_index_new = list(set(all_index) - set(combined_shots))
+            X_support_new = x[combined_shots]
+            y_support_new = torch.hstack([y_support, torch.FloatTensor(y[additional_samples])])
+            X_test_new = x[test_index_new]
+            y_test_new = y[test_index_new]
+
+            # fit and predict
+            taskmodel.fit(X_support_new, y_support_new)
+            y_pred_new, y_score_new = taskmodel.predict(X_test_new)
+            y_pred_all, y_score_all = taskmodel.predict(X_all)
+
+            y_pred_new = [int(a) for a in y_pred_new]
+            new_acc = accuracy_score(y_pred_new, y_test_new)
+
+            all_additions.append(additional_samples)
+            accuracies.append(new_acc)
+            y_support = y_support_new
+            test_index = test_index_new
+
+        print("final support set: ", combined_shots)
+        print("final labels: ", cluster_labels[combined_shots])
+        various_runs.append(accuracies)
+
+    mean, sigma = lists_average_and_stddev(various_runs)
+
+    plt.plot(np.arange(shot,len(mean)*shot+1,shot), mean, label="METEOR unseen clusters & uncertain samples")
+    if add_fill == True:
+        plt.fill_between(np.arange(shot,len(mean)*shot+1,shot), np.array(mean)+np.array(sigma), np.array(mean)-np.array(sigma), facecolor='yellow', alpha=0.5, label='Variability')
+    plt.title(("Region: " + (datasets[region][2][0].split('_')[0]).capitalize() + " (seed: " + str(seed) + ")"))
+    plt.ylabel("Accuracy")
+    plt.xlabel("Number of shots")
+    plt.xticks(np.arange(0,21,5))
+    plt.tight_layout()
+  
+def resnet_accuracy_region(region):
+    resnet_model = Classifier.load_from_checkpoint('resnet_model/checkpoints/resnet18_2022-11-02_14:08:50/epoch=108-val_accuracy=0.95.ckpt')
+    resnet_model.eval()
+
+    x, y, ID = datasets[region][0], datasets[region][1], datasets[region][2]
+
+    preds = []
+    y_scores = []
+    for i in tqdm(range(len(x))):
+        x_instance = x[i]
+        pred = resnet_model(x_instance.unsqueeze(0))
+        pred = torch.sigmoid(pred)
+        y_scores.append(pred[0].item())
+        if pred[0].item() > 0.5:
+            preds.append(1)
+        else:
+            preds.append(0)
+
+    acc = accuracy_score(preds,y)
+    return acc
+def resnet_accuracy_dataset(x, y):
+    resnet_model = Classifier.load_from_checkpoint('resnet_model/checkpoints/resnet18_2022-11-02_14:08:50/epoch=108-val_accuracy=0.95.ckpt')
+    resnet_model.eval()
+
+    preds = []
+    y_scores = []
+    for i in tqdm(range(len(x))):
+        x_instance = x[i]
+        pred = resnet_model(x_instance.unsqueeze(0))
+        pred = torch.sigmoid(pred)
+        y_scores.append(pred[0].item())
+        if pred[0].item() > 0.5:
+            preds.append(1)
+        else:
+            preds.append(0)
+
+    acc = accuracy_score(preds,y)
+    return acc
+def dataset_reducer(region, shot, seed, realistic=False, percentage_debris = 5):
+    x, y, ID = datasets[region][0], datasets[region][1], datasets[region][2]
+    y = np.array(y)
+    y_bool_debris = y == 1
+    y_bool_nondebris = y == 0
+    debris_idx = np.where(y_bool_debris)[0]
+    non_debris_idx = np.where(y_bool_nondebris)[0]
+    all_index = np.concatenate((debris_idx, non_debris_idx), axis=None)
+    x = torch.stack(x)
+
+    np.random.seed(seed)
+    if realistic == True:
+        # update for more realistic case (10% debris)
+        debris_size = round(percentage_debris * 538 / (100-percentage_debris))
+        debris_idx = np.random.choice(debris_idx, size=debris_size, replace=False)
+        all_index = np.concatenate((debris_idx, non_debris_idx), axis=None)
+
+    combined_shots = np.random.choice(all_index, size=shot*2, replace=False)
+    test_index = list(set(all_index) - set(combined_shots))
+
+    X_test = x[test_index]
+    y_test = y[test_index]
+
+    return X_test, y_test
+    
 ### Selection of parameters for visualizing / testing the functions
 reg = 5  # Region id
-plt.plot(np.arange(1,19*1+2,1), resnet_accuracies[reg]*np.ones(19*1+1), label="ResNet-18")  # Resnet accuracy line
+resnet_acc = resnet_accuracy_region(reg)
+plt.plot(np.arange(1,19*1+2,1), resnet_acc*np.ones(19*1+1), label="ResNet-18")  # Resnet accuracy line
+
+random_clusters_and_samples_v(region=reg, shot=1, length=19, seed=18, n_clusters=4, variability=20, resnet="trained", realistic=False, percentage_debris = 5, add_fill = True)
+# unseen_clusters_random_samples_v(region=reg, shot=1, length=19, seed=18, n_clusters=4, variability=20, resnet="trained", realistic=True, percentage_debris = 5, add_fill = True)
+# unseen_clusters_uncertain_samples_v(region=reg, shot=1, length=19, seed=18, n_clusters=4, variability=20, resnet="trained", realistic=True, percentage_debris = 5, add_fill = True)
+plt.xticks(np.arange(0,21,5))
+plt.legend(loc="lower right")
+plt.savefig('figures/cluster_methods/random & random ideal case.png')
 
 #### Testing uncertainty based active learning methods (19x1+1 = length x shots +2 or +1)
 # random_sampling(region=reg, shot=1, length=19, seed=1)
@@ -1571,15 +1931,28 @@ plt.plot(np.arange(1,19*1+2,1), resnet_accuracies[reg]*np.ones(19*1+1), label="R
 # plt.xticks(np.arange(0,21,5))
 # plt.savefig('figures/cluster_methods/realistic cases for 4 clusters.png')
 
-random_clusters_and_samples(region=reg, shot=1, length=19, seed=18, n_clusters=4, realistic=True)
-unseen_clusters_random_samples(region=reg, shot=1, length=19, seed=18, n_clusters=4, realistic=True)
-unseen_clusters_uncertain_samples(region=reg, shot=1, length=19, seed=18, n_clusters=4, realistic=True)
-L = plt.legend(loc="lower right")
-L.get_texts()[1].set_text('random clusters & random samples')
-L.get_texts()[2].set_text('unseen clusters & random samples')
-L.get_texts()[3].set_text('unseen clusters & uncertain samples')
-plt.xticks(np.arange(0,21,5))
-plt.savefig('figures/cluster methods compared realistic v1 (5%).png')
+# random_clusters_and_samples(region=reg, shot=1, length=19, seed=18, n_clusters=4, realistic=True)
+# unseen_clusters_random_samples(region=reg, shot=1, length=19, seed=18, n_clusters=4, realistic=True)
+# unseen_clusters_uncertain_samples(region=reg, shot=1, length=19, seed=18, n_clusters=4, realistic=True)
+# L = plt.legend(loc="lower right")
+# L.get_texts()[1].set_text('random clusters & random samples')
+# L.get_texts()[2].set_text('unseen clusters & random samples')
+# L.get_texts()[3].set_text('unseen clusters & uncertain samples')
+# plt.xticks(np.arange(0,21,5))
+# plt.savefig('figures/resnet on different datasets.png')
+
+# # Testing resnet performance with different test sets
+# reg = 5
+# resnet_acc = resnet_accuracy_region(reg)
+# plt.plot(np.arange(1,19*1+2,1), resnet_acc*np.ones(19*1+1), label="ResNet-18 full data")  
+# for k in range(10):
+#     x_reduced, y_reduced = dataset_reducer(reg, shot=20, seed=18*(k+1), realistic=False, percentage_debris = 5)
+#     resnet_acc_reduced = resnet_accuracy_dataset(x_reduced, y_reduced)
+#     plt.plot(np.arange(1,19*1+2,1), resnet_acc_reduced*np.ones(19*1+1), label="ResNet-18 realistic test set, s:"+str(18*(k+1))) 
+# plt.xticks(np.arange(0,21,5))
+# # plt.yticks(np.arange(0,1.1,0.1))
+# plt.legend(loc="lower right")
+# plt.savefig('figures/resnet on different datasets.png')
 
 # ### Compare cluster vs random selected support sets
 # random.seed = 17
